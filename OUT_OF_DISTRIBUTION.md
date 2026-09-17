@@ -1,9 +1,9 @@
 # Out-of-distribution test
 
-A trained classifier learns the mail it was trained on. This test asks what happens when both
-approaches meet email unlike that mail: a TF-IDF classifier trained on this repository's datasets,
-and [TypeSafe](https://typesafe.ai)'s Jev model, which is never trained and was not adjusted for
-these emails.
+A trained classifier only knows the mail it learned from. This test shows both approaches email
+unlike that mail and sees what happens: a word-frequency (TF-IDF) classifier trained on this
+repository's datasets, and [TypeSafe](https://typesafe.ai)'s Jev model, which is never trained and
+whose questions were not changed for these emails.
 
 > **This is an exploratory experiment, not a benchmark.** The sets are small (633 modern emails and
 > 853 recent phishing emails), run once with `jev-1.13.0` in September 2026. See
@@ -17,8 +17,9 @@ these emails.
 | **Recent phishing**, 2024–25 | Nearly 20 years newer; TF-IDF trained on 2005–07 mail | **91.0–93.6%** called phishing | **70.3%** called phishing |
 | **Modern mail**, 2026, legitimate or not | Current mailing-list posts and spam-trap mail; TF-IDF trained on 2005–07 mail | **97.3%** accuracy (with urgency and authority) | **72.5%** accuracy |
 
-Trained on its own labels, TF-IDF matched or beat TypeSafe on every dataset in this repository. On
-unfamiliar email it fell 25 or more points behind, while TypeSafe stayed close to its usual accuracy.
+On every dataset in this repository, TF-IDF trained on that dataset's own labels matched or beat
+TypeSafe. On unfamiliar email it fell 25 points or more behind, while TypeSafe scored about what it
+always does.
 
 ## 1. Ling-Spam
 
@@ -32,9 +33,12 @@ TF-IDF logistic regression was trained on all 18,514 unique email-dataset emails
 | TypeSafe, detailed criteria | 0.9701 | 0.9753 | 8 | 78 |
 | TF-IDF trained on email-dataset | 0.7298 | 0.8111 | 32 | 745 |
 
-TF-IDF flagged 745 legitimate list posts, almost a third, as spam: academic announcements and
-discussions don't look like the business mail it learned "legitimate" from. Trained on Ling-Spam's
-own labels, the same method scored 0.9857.
+Balanced accuracy averages the share of spam caught with the share of legitimate mail passed, so the
+much larger legitimate side doesn't dominate it.
+
+TF-IDF flagged 745 legitimate posts, almost a third of them, as spam: academic announcements and
+discussions look nothing like the business mail it learned "legitimate" from. Trained on Ling-Spam's
+own labels instead, the same method scored 0.9857.
 
 ## 2. Recent phishing
 
@@ -51,18 +55,18 @@ TF-IDF classifier was trained on the phishing experiment's main and fresh tests:
 | TypeSafe, names only | 93.6% | 2.2% | 4.2% |
 | TF-IDF trained on 2005–07 mail | 70.3% | 13.5% | 16.2% |
 
-Modern phishing (storage-full notices, DocuSign requests, payment errors) uses different words from
-2006's bank and eBay lures, so TF-IDF called 16% of it legitimate.
+Today's phishing uses different words from 2006's bank and eBay lures: full-mailbox warnings,
+document-signing requests, payment errors. TF-IDF called 16% of it legitimate.
 
 ## 3. Modern mail
 
 - **Legitimate:** all 333 unique posts to two public Python mailing lists from January to August
   2026: 264 discussion posts on python-list and 69 release and event announcements on
   python-announce-list.
-- **Spam trap:** a random sample of 300 (seed 7) of the unique emails in the August 2026 file of
-  Bruce Guenter's [spam archive](http://untroubled.org/spam/), which collects mail sent to bait
-  addresses. It mixes spam and phishing without saying which is which, so this test scores
-  legitimate against not legitimate.
+- **Spam trap:** 300 emails (chosen at random, seed 7) from the August 2026 file of Bruce Guenter's
+  [spam archive](http://untroubled.org/spam/). He publishes mail sent to addresses that exist only
+  to collect spam. The archive doesn't say which emails are spam and which are phishing, so this
+  test only asks: legitimate, or not?
 
 TypeSafe was asked the three phishing-experiment questions, unchanged. The TF-IDF classifier is the
 same one as in test 2.
@@ -77,17 +81,17 @@ same one as in test 2.
 TypeSafe called the spam-trap mail about 59% spam and 39–41% phishing.
 
 - **TF-IDF passed most modern spam and phishing as legitimate.** It called 165 of the 300 spam-trap
-  emails legitimate. They include "Still pending: Your AARP sign-up", "Your CVS Pts. are set to expire
+  emails legitimate, among them "Still pending: Your AARP sign-up", "Your CVS Pts. are set to expire
   today", Walmart and Sam's Club points notices, "Courtesy Road Kit - AAA Licensed Drivers Only",
-  auto-policy "changes to review" and health cures. TypeSafe caught 163 of those 165.
+  car-insurance "changes to review" and miracle health cures. TypeSafe caught 163 of those 165.
 - **TypeSafe's mistakes on legitimate posts were mostly self-promotion.** 11 of the 12 list posts it
   called spam were one person's repeated posts promoting their own Python editor, which a list
   moderator might also call spam.
 - **TF-IDF's mistakes on legitimate posts were announcements.** It called 7 posts phishing, such as
   "ANN: Python Meeting Düsseldorf" and "PyCA cryptography 48.0.1 release", and 2 spam.
-- **Names only did best here** (98.6%). Its lack of detail suited modern mail better than
-  descriptions written from 2000s email, though it can't tell spam from phishing
-  ([PHISHING.md](PHISHING.md)).
+- **Asking with only the category names did best here** (98.6%). The written descriptions came from
+  2000s email, and leaving them out suited modern mail better. That version can't tell spam from
+  phishing, though ([PHISHING.md](PHISHING.md)).
 
 Classifying the 633 modern emails cost about $0.05 (1.2M input tokens at $0.042 per million).
 
@@ -99,8 +103,9 @@ Classifying the 633 modern emails cost about $0.05 (1.2M input tokens at $0.042 
   but individual messages weren't reviewed.
 - **The legitimate mail isn't varied.** It all comes from two Python mailing lists, with no receipts,
   shipping notices, newsletters or personal mail, which a real inbox would have.
-- **The TF-IDF models are simple.** A model trained on newer or broader mail would do better; the
-  point is that any trained model depends on its training data matching what it sees later.
+- **The TF-IDF models are simple.** One trained on newer or more varied mail would do better. The
+  point isn't that this classifier is weak, but that any trained model depends on its training mail
+  resembling what it later sees.
 - **Jev may have seen some of this mail.** `jev-1.13.0` was released in early September 2026, and
   the public archives used here could be in its training data. There was no way to check.
 

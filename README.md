@@ -197,17 +197,17 @@ spam caught and the share of ham passed, so it isn't dominated by the much large
 
 ## Further experiments
 
-**[Ham, spam or phishing](PHISHING.md).** A single multiple-choice question sorts email into three
-categories, with phishing from Jose Nazario's corpus. TypeSafe scored 0.94 on a balanced set of
-5,733 emails against 0.99 for a TF-IDF classifier trained on 4,600 labeled examples. Spelling out
-the categories mattered most: with only the category names, TypeSafe called more than half the spam
-phishing. Adding phishing's appeals to urgency and authority helped on the emails that prompted the
-change and barely on a fresh set.
+**[Ham, spam or phishing](PHISHING.md).** One multiple-choice question sorts email into three
+categories, with the phishing coming from Jose Nazario's collection. On 5,733 emails, equally split
+between the three, TypeSafe scored 0.94 and a TF-IDF classifier trained on 4,600 labeled examples
+scored 0.99. Writing out what each category means mattered most: given only the category names,
+TypeSafe called more than half the spam phishing. Describing how phishing appeals to urgency and
+authority helped on the emails that prompted the change, and barely on a fresh set.
 
 **[Out-of-distribution test](OUT_OF_DISTRIBUTION.md).** Both approaches were shown email unlike
-anything the classifiers were trained on: Ling-Spam, phishing from 2024–25, and 2026 mailing-list
-posts and spam-trap mail. TypeSafe stayed near its usual accuracy while the trained classifiers
-dropped sharply.
+anything the classifiers had learned from: Ling-Spam, phishing from 2024–25, and 2026 mailing-list
+posts and spam-trap mail. The trained classifiers dropped sharply. TypeSafe scored about what it
+always does.
 
 | Out-of-distribution test | TypeSafe | TF-IDF |
 |---|---|---|
