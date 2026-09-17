@@ -4,7 +4,8 @@ An experiment: how close can [TypeSafe](https://typesafe.ai)'s Jev model get to 
 filter without any training data? Jev sorts the 19,528 emails in
 [realprogrammersusevim/email-dataset](https://github.com/realprogrammersusevim/email-dataset) into
 spam and ham (legitimate mail) without seeing any labeled examples. Its results are compared with
-standard word-frequency (TF-IDF) classifiers trained on the dataset's own labels.
+standard word-frequency (TF-IDF) classifiers trained on the dataset's own labels. A second test on
+the classic [Ling-Spam](#second-dataset-ling-spam) corpus checks whether the approach carries over.
 
 Cost is part of the motivation. Jev costs $0.042 per million input tokens ($42 per billion, as
 listed on [typesafe.ai](https://typesafe.ai)), and output tokens are free
@@ -12,11 +13,12 @@ listed on [typesafe.ai](https://typesafe.ai)), and output tokens are free
 running a model on every email is cheap: checking all 19,528 emails, with four questions per email,
 cost about $1.12.
 
-> **This is an exploratory experiment, not a benchmark.** It was run once, on one public dataset,
-> with one model version (`jev-1.13.0`, September 2026). The questions changed as the experiment
-> went on, and the best-performing wording was written after reading this dataset's mistakes.
-> Treat the numbers as a record of what worked here, not a general measure of spam-filter
-> accuracy. See [Caveats](#caveats).
+> **This is an exploratory experiment, not a benchmark.** It was run once per dataset, on two public
+> datasets, with one model version (`jev-1.13.0`, September 2026). The questions changed as the
+> experiment went on, and the best-performing wording was written after reading the first
+> dataset's mistakes; on the second dataset it did worse than the plain question. Treat the numbers
+> as a record of what happened here, not a general measure of spam-filter accuracy. See
+> [Caveats](#caveats).
 
 Each email is sent to the TypeSafe API with a yes/no question, "Is `email` spam?", and the API
 returns the probability that the answer is yes. TypeSafe calls this kind of question a
@@ -139,17 +141,69 @@ of email, not whether it is commercial or sent to many people. It didn't help.
 | Detailed criteria | 0.9829 | 0.9836 |
 | Detailed criteria with an extra instruction | 0.9795 | 0.9801 |
 
+## Second dataset: Ling-Spam
+
+[Ling-Spam](https://www.aueb.gr/users/ion/data/lingspam_public.tar.gz) (Androutsopoulos et al.,
+2000) has 2,893 messages: 2,412 legitimate posts from the Linguist mailing list and 481 spam
+messages. This test uses its "bare" version, which keeps every word. The text is already lowercased,
+and each message has only a subject line and a body. None of its messages appear
+in email-dataset, and only 2 are 90% or more similar to a message there. As with the first dataset,
+bodies are cut off at 6,000 characters, which affects 419 messages.
+
+The four questions from the full run were used unchanged, including the detailed criteria written
+for email-dataset. All 2,893 messages took 31 seconds and 4.5M input tokens, about $0.19.
+
+| Question (all 2,893 messages) | Accuracy | Missed spam (of 481) | Ham flagged as spam (of 2,412) |
+|---|---|---|---|
+| **Plain question** | **0.986** | 2 | **39** |
+| Short general definition | 0.921 | 2 | 227 |
+| Detailed criteria | 0.970 | 8 | 78 |
+| Detailed criteria with an extra instruction | 0.962 | 8 | 101 |
+
+The comparison with trained classifiers uses the 2,876 unique messages and the same cross-validation
+as the first dataset, with near-copies kept in the same fold. Balanced accuracy averages the share of
+spam caught and the share of ham passed, so it isn't dominated by the much larger ham class.
+
+| Approach | Labeled messages used | Accuracy | Balanced accuracy | Missed spam (of 468) | Ham flagged as spam (of 2,408) |
+|---|---|---|---|---|---|
+| **TypeSafe, plain question** | **0** | 0.9857 | **0.9898** | 2 | 39 |
+| TypeSafe, detailed criteria | 0 | 0.9701 | 0.9753 | 8 | 78 |
+| TF-IDF logistic regression | ~2.3K | 0.9857 | 0.9571 | 40 | 1 |
+| TF-IDF naive Bayes | ~2.3K | **0.9941** | 0.9844 | 14 | 3 |
+| Average of TypeSafe (either question) and logistic regression | ~2.3K | 0.9983 | 0.9955 | 4 | 1 |
+
+- **The detailed criteria didn't carry over.** On Ling-Spam the plain question did best, and every
+  added definition increased the number of legitimate messages flagged as spam. About three-quarters
+  of the 78 flagged by the detailed criteria are publishers' notices of new books posted to the list;
+  most of the rest are course, job and association announcements. A likely reason is that the
+  criteria count "advertising or offers" as spam, while Ling-Spam messages have no headers or list
+  footers to show they came through a list the reader joined.
+- **TypeSafe and the trained classifiers err in opposite directions.** TypeSafe rarely misses spam
+  but flags some list announcements; the trained classifiers almost never flag legitimate messages
+  but miss more spam. With only about 2,300 training messages, logistic regression missed 40 spam
+  messages, including diploma offers, adult sites and diet pills that TypeSafe caught.
+- **By plain accuracy naive Bayes wins; by balanced accuracy the plain question does.** Ling-Spam is
+  known to be an easy corpus for word-based filters, because all its legitimate mail comes from one
+  mailing list about linguistics.
+- **Combining still helps most.** Averaging TypeSafe's score with logistic regression's gives 0.9983
+  accuracy, with 4 missed spam messages and 1 false flag, whichever TypeSafe question is used.
+- **The corpus's own 10 parts flatter the trained models.** 106 groups of near-copies are spread
+  across more than one part. Using those parts as the folds, as the original paper did, raises
+  logistic regression from 0.9857 to 0.9910 and naive Bayes from 0.9941 to 0.9962.
+
 ## Caveats
 
 - **Some labels are wrong.** The dataset treats newsletters and promotions inconsistently, and some
   of TypeSafe's most confident "mistakes" are labeling errors. For example, an Irish-lottery scam is
   labeled ham (`1/02595.eml`), and two ordinary personal emails are labeled spam (`2/5823.eml`,
   `2/0402.eml`).
-- **The criteria fit this dataset.** They were written from its mistakes, and they cause some errors
-  of their own. For example, they treat bounce messages as delivery notices, but the dataset labels
-  some bounce messages as spam. For other mail, write your own definition.
-- **Jev may have seen these emails before.** They appear to come from the public Enron and
-  SpamAssassin email collections, which may be in Jev's training data. There was no way to check.
+- **The criteria fit the first dataset.** They were written from its mistakes, and they cause some
+  errors of their own. For example, they treat bounce messages as delivery notices, but the dataset
+  labels some bounce messages as spam. On Ling-Spam they made results worse. For other mail, write
+  your own definition and test it.
+- **Jev may have seen these emails before.** The first dataset appears to combine the public Enron,
+  SpamAssassin and CSDMC2010 collections, and Ling-Spam has been public since 2000. Any of them may
+  be in Jev's training data. There was no way to check.
 - **One model version, one run.** Results are from `jev-1.13.0` (the version behind `jev-latest`)
   in September 2026. Scores close to 0.5 can change slightly between runs: the same 500-email
   sample scored 0.980 and then 0.978 with the plain question. Costs use the price listed in
@@ -175,6 +229,14 @@ uv run analyze.py           # duplicates, subsets, score reliability, review rat
 uv run tfidf_baseline.py    # trains the TF-IDF models (about a minute), writes results/tfidf_oof.jsonl
 ```
 
+For Ling-Spam:
+
+```sh
+./fetch_lingspam.sh         # downloads Ling-Spam and checks it matches the copy used here
+uv run spam_noul.py --dataset lingspam --questions criteria --all --report
+uv run tfidf_baseline.py --dataset lingspam    # writes results/lingspam_tfidf_oof.jsonl
+```
+
 `report/confusion_matrices.ipynb` draws the confusion matrices from `results/tfidf_oof.jsonl` and
 lets you try a different cutoff. GitHub shows it with its charts; to run it again:
 
@@ -193,6 +255,7 @@ uv run spam_noul.py --questions criteria --per-class 250 --seed 1
 uv run spam_noul.py --questions criteria --per-class 250 --seed 3 \
   --exclude-from results/results_multi_250x2_seed42.jsonl results/results_multi_250x2_seed1.jsonl
 uv run spam_noul.py --questions criteria --all --concurrency 16    # add --resume to retry failures
+uv run spam_noul.py --dataset lingspam --questions criteria --all --concurrency 16
 ```
 
 A 500-email sample takes about 10 seconds and costs about $0.03. The full run took 206 seconds with
@@ -204,18 +267,27 @@ use fewer tokens.
 
 | Path | Contents |
 |---|---|
-| `spam_noul.py` | Reads the emails, picks samples, defines the three question sets, calls the API and prints reports |
+| `spam_noul.py` | Reads the messages from either dataset, picks samples, defines the three question sets, calls the API and prints reports |
 | `tfidf_baseline.py` | Trains the TF-IDF classifiers, keeping near-copies together, and compares them with TypeSafe |
-| `analyze.py` | Analyzes the full run: duplicates, subsets, score reliability, cutoffs and review rates |
-| `fetch_dataset.sh` | Downloads the dataset at commit `84209612` |
+| `analyze.py` | Analyzes the email-dataset full run: duplicates, subsets, score reliability, cutoffs and review rates |
+| `fetch_dataset.sh` | Downloads email-dataset at commit `84209612` |
+| `fetch_lingspam.sh` | Downloads Ling-Spam and checks its SHA-256 checksum |
 | `results/` | Scores and token counts for each email, without the email text |
 | `report/` | Confusion-matrix notebook (`confusion_matrices.ipynb`) and page (`confusion_matrices.html`) |
 
 ## Data
 
 [email-dataset](https://github.com/realprogrammersusevim/email-dataset) is MIT-licensed; its
-LICENSE file has the copyright notices. This repository doesn't include the emails themselves:
-`results/` refers to them only by file path.
+LICENSE file has the copyright notices.
+
+The Ling-Spam corpus is described in: I. Androutsopoulos, J. Koutsias, K.V. Chandrinos, G. Paliouras
+and C.D. Spyropoulos, "An Evaluation of Naive Bayesian Anti-Spam Filtering", *Proceedings of the
+Workshop on Machine Learning in the New Information Age, 11th European Conference on Machine
+Learning*, Barcelona, 2000, pp. 9–17. Its readme asks that published work using it credit the corpus
+and notify its author.
+
+This repository doesn't include messages from either dataset: `results/` refers to them only by file
+path.
 
 ## License
 

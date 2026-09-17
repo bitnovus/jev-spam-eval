@@ -1,7 +1,8 @@
-"""Ham/spam classification of email-dataset with TypeSafe Noul questions.
+"""Ham/spam classification of email-dataset or Ling-Spam with TypeSafe Noul questions.
 
-Usage: uv run spam_noul.py [--questions single|multi|criteria] [--per-class 100 | --all] [--seed 42]
-                          [--exclude-from results/a.jsonl ...] [--concurrency 8] [--resume] [--report]
+Usage: uv run spam_noul.py [--dataset email|lingspam] [--questions single|multi|criteria]
+                          [--per-class 100 | --all] [--seed 42] [--exclude-from results/a.jsonl ...]
+                          [--concurrency 8] [--resume] [--report]
 
   single:   one "Is this email spam?" Noul, with and without criteria.
   multi:    the spam judgment split into independent signal Nouls in one request,
@@ -13,8 +14,9 @@ Usage: uv run spam_noul.py [--questions single|multi|criteria] [--per-class 100 
   emails that are missing or errored in the existing results file.
   --report re-prints the report for an existing results file without calling the API.
 
-Results go to results/results_<questions>_<size>.jsonl and hold scores, not email text; the text
-is re-read from the dataset (see fetch_dataset.sh) whenever it is needed.
+Results go to results/results_<questions>_<size>.jsonl (results_lingspam_... for Ling-Spam) and
+hold scores, not email text; the text is re-read from the dataset (see fetch_dataset.sh and
+fetch_lingspam.sh) whenever it is needed.
 """
 
 import argparse
@@ -35,7 +37,11 @@ from pathlib import Path
 from typesafe_sdk import AsyncTypeSafeClient, Noul
 
 ROOT = Path(__file__).parent
-DATASET = ROOT / "email-dataset" / "dataset"
+DATASETS = {
+    "email": ROOT / "email-dataset" / "dataset",
+    "lingspam": ROOT / "lingspam" / "lingspam_public" / "bare",
+}
+FETCH_SCRIPTS = {"email": "./fetch_dataset.sh", "lingspam": "./fetch_lingspam.sh"}
 RESULTS_DIR = ROOT / "results"
 LABELS = {"1": "ham", "2": "spam"}
 MAX_BODY_CHARS = 6000
@@ -207,28 +213,41 @@ def parse_email(raw: str, bucket: str) -> dict:
     return {**fields, "body": body[:MAX_BODY_CHARS]}
 
 
-def read_email(file: str) -> tuple[str, dict]:
-    """Format bucket and parsed state for a dataset path such as "2/0001.eml"."""
-    raw = (DATASET / file).read_text(errors="replace")
+def read_email(file: str, dataset: str = "email") -> tuple[str, dict]:
+    """Format bucket and parsed state for a dataset path such as "2/0001.eml" or "part1/3-1msg1.txt"."""
+    raw = (DATASETS[dataset] / file).read_text(errors="replace")
     bucket = format_bucket(raw)
     return bucket, parse_email(raw, bucket)
 
 
-def require_dataset() -> None:
-    if not all((DATASET / folder).is_dir() for folder in LABELS):
-        raise SystemExit(f"Dataset not found at {DATASET}; run ./fetch_dataset.sh first.")
+def require_dataset(dataset: str = "email") -> None:
+    root = DATASETS[dataset]
+    folders = LABELS if dataset == "email" else [f"part{i}" for i in range(1, 11)]
+    if not all((root / folder).is_dir() for folder in folders):
+        raise SystemExit(f"Dataset not found at {root}; run {FETCH_SCRIPTS[dataset]} first.")
 
 
-def sample(per_class: int | None, seed: int, exclude: set[str] = frozenset()) -> list[dict]:
+def list_files(dataset: str = "email") -> list[tuple[str, str]]:
+    """(file, label) for every message, in a fixed order."""
+    root = DATASETS[dataset]
+    if dataset == "lingspam":
+        # Ling-Spam keeps the 10 parts its authors used for 10-fold tests; spam files start with "spmsg".
+        parts = sorted(root.iterdir(), key=lambda part: int(part.name.removeprefix("part")))
+        return [(f"{part.name}/{f.name}", "spam" if f.name.startswith("spmsg") else "ham")
+                for part in parts for f in sorted(part.iterdir())]
+    return [(f"{folder}/{f.name}", label) for folder, label in LABELS.items() for f in sorted((root / folder).iterdir())]
+
+
+def sample(per_class: int | None, seed: int, exclude: set[str] = frozenset(), dataset: str = "email") -> list[dict]:
     """A balanced random sample, or every email when per_class is None."""
-    require_dataset()
+    require_dataset(dataset)
     rng = random.Random(seed)
+    files = list_files(dataset)
     items = []
-    for folder, label in LABELS.items():
-        files = [f"{folder}/{f.name}" for f in sorted((DATASET / folder).iterdir())]
-        files = [f for f in files if f not in exclude]
-        for file in files if per_class is None else rng.sample(files, per_class):
-            bucket, parsed = read_email(file)
+    for label in ("ham", "spam"):
+        pool = [file for file, file_label in files if file_label == label and file not in exclude]
+        for file in pool if per_class is None else rng.sample(pool, per_class):
+            bucket, parsed = read_email(file, dataset)
             items.append({"file": file, "label": label, "bucket": bucket, "email": parsed})
     rng.shuffle(items)
     return items
@@ -333,14 +352,14 @@ def summary_line(name: str, p: list[float], y: list[bool]) -> list[bool]:
     return pred
 
 
-def subject_of(file: str) -> str:
+def subject_of(file: str, dataset: str) -> str:
     try:
-        return read_email(file)[1]["subject"]
+        return read_email(file, dataset)[1]["subject"]
     except FileNotFoundError:
         return "(dataset not fetched)"
 
 
-def details(name: str, ok: list[dict], p: list[float], y: list[bool], show_signals: list[str]) -> None:
+def details(name: str, ok: list[dict], p: list[float], y: list[bool], show_signals: list[str], dataset: str) -> None:
     pred = [v >= THRESHOLD for v in p]
     print(f"\n=== {name} ===")
     print("accuracy by format:")
@@ -361,10 +380,10 @@ def details(name: str, ok: list[dict], p: list[float], y: list[bool], show_signa
             r = ok[i]
             signals = " ".join(f"{s[:6]}={r['nouls'][s]:.2f}" for s in show_signals)
             print(f"  {r['file']:12s} {r['label']:4s} score={p[i]:.2f}  {signals}  "
-                  f"subject={subject_of(r['file'])[:40]!r}")
+                  f"subject={subject_of(r['file'], dataset)[:40]!r}")
 
 
-def report(results: list[dict], question_set: str) -> None:
+def report(results: list[dict], question_set: str, dataset: str = "email") -> None:
     ok = [r for r in results if "nouls" in r]
     errors = [r for r in results if "error" in r]
     print(f"\n{len(ok)} classified, {len(errors)} errors")
@@ -392,11 +411,12 @@ def report(results: list[dict], question_set: str) -> None:
 
     show = list(QUESTION_SETS[question_set]) if question_set == "multi" else []
     for name in (["spam_plain", "hand_rule", "logreg_cv[all]"] if question_set == "multi" else preds):
-        details(name, ok, preds[name], y, [s for s in show if s != "spam_plain"])
+        details(name, ok, preds[name], y, [s for s in show if s != "spam_plain"], dataset)
 
 
 async def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset", choices=DATASETS, default="email")
     parser.add_argument("--questions", choices=QUESTION_SETS, default="single")
     size = parser.add_mutually_exclusive_group()
     size.add_argument("--per-class", type=int, default=100)
@@ -410,16 +430,17 @@ async def main() -> None:
     per_class = None if args.all else args.per_class
 
     size = "all" if per_class is None else f"{per_class}x2_seed{args.seed}"
-    out = RESULTS_DIR / f"results_{args.questions}_{size}.jsonl"
+    prefix = "results" if args.dataset == "email" else f"results_{args.dataset}"
+    out = RESULTS_DIR / f"{prefix}_{args.questions}_{size}.jsonl"
     if args.report:
         if not out.exists():
             raise SystemExit(f"{out} does not exist")
-        report([json.loads(line) for line in out.open()], args.questions)
+        report([json.loads(line) for line in out.open()], args.questions, args.dataset)
         return
 
     exclude = {json.loads(line)["file"] for path in args.exclude_from for line in path.open()}
     questions = QUESTION_SETS[args.questions]
-    items = sample(per_class, args.seed, exclude)
+    items = sample(per_class, args.seed, exclude, args.dataset)
     RESULTS_DIR.mkdir(exist_ok=True)
 
     kept = {}
@@ -448,7 +469,7 @@ async def main() -> None:
                     print(f"  {count}/{len(todo)} in {time.monotonic() - start:.0f}s, {errors} errors", flush=True)
     elapsed = time.monotonic() - start
     print(f"done in {elapsed:.1f}s ({len(todo)} requests, concurrency {args.concurrency}); wrote {out.name}")
-    report(results, args.questions)
+    report(results, args.questions, args.dataset)
 
 
 if __name__ == "__main__":

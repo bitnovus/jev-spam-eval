@@ -1,11 +1,12 @@
 """Compare TypeSafe against TF-IDF classifiers trained on the dataset's labels.
 
-Reads TypeSafe scores from results/results_criteria_all.jsonl, re-reads the exact email text TypeSafe
-saw from the dataset, removes exact duplicates, clusters near-duplicates, and scores every email
-out-of-fold with 5-fold cross-validation in which each near-duplicate cluster stays entirely on one
-side of the split. Writes per-email scores to results/tfidf_oof.jsonl.
+Reads TypeSafe scores from the dataset's full criteria run, re-reads the exact email text TypeSafe
+saw, removes exact duplicates, clusters near-duplicates, and scores every email out-of-fold with
+5-fold cross-validation in which each near-duplicate cluster stays entirely on one side of the split.
+For Ling-Spam it also scores the corpus's own 10 parts, the split its authors used. Writes per-email
+scores to results/tfidf_oof.jsonl (email-dataset) or results/lingspam_tfidf_oof.jsonl.
 
-Usage: uv run tfidf_baseline.py [--similarity 0.8]
+Usage: uv run tfidf_baseline.py [--dataset email|lingspam] [--similarity 0.8]
 """
 
 import argparse
@@ -20,28 +21,32 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedGroupKFold, StratifiedKFold
 from sklearn.naive_bayes import MultinomialNB
 
-from spam_noul import RESULTS_DIR, THRESHOLD, auc, read_email, require_dataset
-
-RESULTS = RESULTS_DIR / "results_criteria_all.jsonl"
-OUT = RESULTS_DIR / "tfidf_oof.jsonl"
+from spam_noul import DATASETS, RESULTS_DIR, THRESHOLD, auc, read_email, require_dataset
 
 TS_BARE = "TypeSafe: bare question (0 labels)"
 TS = "TypeSafe: structured criteria (0 labels)"
-LR = "TF-IDF logreg, grouped CV (~14.8K labels)"
 NB = "TF-IDF naive Bayes, grouped CV"
 LR_LEAKY = "TF-IDF logreg, ungrouped CV (leaky)"
 AVERAGE = "Average of structured criteria + logreg"
+LR_PARTS = "TF-IDF logreg, corpus's 10 parts"
+NB_PARTS = "TF-IDF naive Bayes, corpus's 10 parts"
 
 
-def load_unique_rows() -> tuple[list[dict], list[str]]:
+def paths(dataset: str):
+    """(TypeSafe results file, per-email output file) for a dataset."""
+    prefix = "" if dataset == "email" else f"{dataset}_"
+    return RESULTS_DIR / f"results_{prefix}criteria_all.jsonl", RESULTS_DIR / f"{prefix}tfidf_oof.jsonl"
+
+
+def load_unique_rows(dataset: str) -> tuple[list[dict], list[str]]:
     """Rows with their state text, keeping the first file (by name) of each exact-duplicate text."""
-    require_dataset()
-    rows = sorted((json.loads(line) for line in RESULTS.open()), key=lambda r: r["file"])
+    require_dataset(dataset)
+    rows = sorted((json.loads(line) for line in paths(dataset)[0].open()), key=lambda r: r["file"])
     seen, unique, texts = set(), [], []
     for r in rows:
         if "nouls" not in r:
             continue
-        e = read_email(r["file"])[1]
+        e = read_email(r["file"], dataset)[1]
         text = f"{e['subject']}\n{e.get('from', '')}\n{e['body']}"
         if text not in seen:
             seen.add(text)
@@ -92,10 +97,12 @@ def metrics_line(name: str, p, y) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset", choices=DATASETS, default="email")
     parser.add_argument("--similarity", type=float, default=0.8)
     args = parser.parse_args()
+    out = paths(args.dataset)[1]
 
-    rows, texts = load_unique_rows()
+    rows, texts = load_unique_rows(args.dataset)
     y = np.array([r["label"] == "spam" for r in rows])
     print(f"{len(rows)} unique emails (ham {int((~y).sum())}, spam {int(y.sum())})")
 
@@ -114,23 +121,31 @@ def main() -> None:
         TS: np.array([r["nouls"]["spam_structured_criteria"] for r in rows]),
     }
     print("training TF-IDF models (5 folds each)...", flush=True)
+    LR = f"TF-IDF logreg, grouped CV (~{len(rows) * 0.8 / 1000:.1f}K labels)"
     scores[LR] = out_of_fold(texts, y, grouped, lambda: LogisticRegression(max_iter=2000, C=10))
     scores[NB] = out_of_fold(texts, y, grouped, lambda: MultinomialNB(alpha=0.1))
     scores[LR_LEAKY] = out_of_fold(texts, y, leaky, lambda: LogisticRegression(max_iter=2000, C=10))
     scores[AVERAGE] = (scores[TS] + scores[LR]) / 2
+    if args.dataset == "lingspam":
+        part = np.array([int(r["file"].split("/")[0].removeprefix("part")) for r in rows])
+        spanning = sum(len(set(part[groups == g])) > 1 for g, size in sizes.items() if size > 1)
+        print(f"near-duplicate clusters spanning more than one of the corpus's parts: {spanning}")
+        parts = [(np.flatnonzero(part != k), np.flatnonzero(part == k)) for k in range(1, 11)]
+        scores[LR_PARTS] = out_of_fold(texts, y, parts, lambda: LogisticRegression(max_iter=2000, C=10))
+        scores[NB_PARTS] = out_of_fold(texts, y, parts, lambda: MultinomialNB(alpha=0.1))
 
-    with OUT.open("w") as f:
+    with out.open("w") as f:
         for i, r in enumerate(rows):
             f.write(json.dumps({"file": r["file"], "label": r["label"], "cluster": int(groups[i]),
                                 **{name: float(s[i]) for name, s in scores.items()}}) + "\n")
-    print(f"wrote {OUT.relative_to(OUT.parent.parent)}")
+    print(f"wrote {out.relative_to(out.parent.parent)}")
 
     print(f"\nall {len(rows)} unique emails (threshold {THRESHOLD}):")
     for name, p in scores.items():
         metrics_line(name, p, y)
 
     print("\nconfusion matrices (rows actual, columns predicted):")
-    for name in (TS_BARE, TS, LR, NB, AVERAGE):
+    for name in (TS_BARE, TS, LR, NB, AVERAGE, *[n for n in (LR_PARTS, NB_PARTS) if n in scores]):
         pred = scores[name] >= THRESHOLD
         tn, fp = int((~y & ~pred).sum()), int((~y & pred).sum())
         fn, tp = int((y & ~pred).sum()), int((y & pred).sum())

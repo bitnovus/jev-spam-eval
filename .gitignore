@@ -3,3 +3,4 @@
 __pycache__/
 email-dataset/
 .DS_Store
+lingspam/
