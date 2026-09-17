@@ -1,0 +1,12 @@
+[project]
+name = "spam-noul"
+version = "0.1.0"
+description = "Zero-shot spam filtering with TypeSafe Noul questions, compared with TF-IDF baselines"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2.5.3",
+    "scikit-learn>=1.9.1",
+    "typesafe-sdk>=0.6.0",
+]

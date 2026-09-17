@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Numbers are hardcoded from results/tfidf_oof.jsonl (see tfidf_baseline.py output). -->
+<style>body { margin: 0; }</style>
+<title>Jev Spam Confusion Matrices</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface: #fcfcfb;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: rgba(11, 11, 11, 0.10);
+    --neutral-cell: #f0efec;
+    --accent: #2a78d6;
+    --ramp: linear-gradient(to right, #cde2fb, #b7d3f6, #9ec5f4, #86b6ef, #6da7ec, #5598e7, #3987e5, #2a78d6, #256abf, #1c5cab, #184f95, #104281, #0d366b);
+    --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --page: #0d0d0d;
+      --surface: #1a1a19;
+      --ink: #ffffff;
+      --ink-2: #c3c2b7;
+      --grid: #2c2c2a;
+      --axis: #383835;
+      --border: rgba(255, 255, 255, 0.10);
+      --neutral-cell: #2c2c2a;
+      --accent: #3987e5;
+      --ramp: linear-gradient(to right, #0d366b, #104281, #184f95, #1c5cab, #256abf, #2a78d6, #3987e5, #5598e7, #6da7ec, #86b6ef, #9ec5f4, #b7d3f6, #cde2fb);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --neutral-cell: #2c2c2a;
+    --accent: #3987e5;
+    --ramp: linear-gradient(to right, #0d366b, #104281, #184f95, #1c5cab, #256abf, #2a78d6, #3987e5, #5598e7, #6da7ec, #86b6ef, #9ec5f4, #b7d3f6, #cde2fb);
+  }
+
+  body {
+    background: var(--page);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding-inline: 20px;
+    padding-block: 40px 64px;
+    display: grid;
+    gap: 48px;
+  }
+  header { display: grid; gap: 12px; max-width: 68ch; }
+  .eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+  h1 { font-size: clamp(28px, 4.2vw, 40px); line-height: 1.15; font-weight: 600; margin: 0; text-wrap: balance; }
+  h2 { font-size: 21px; line-height: 1.25; font-weight: 600; margin: 0; text-wrap: balance; }
+  h3 { font-size: 15px; font-weight: 600; margin: 0; }
+  p { margin: 0; }
+  .lede { color: var(--ink-2); font-size: 16px; }
+  section { display: grid; gap: 20px; }
+  .section-head { display: grid; gap: 6px; max-width: 68ch; }
+  .section-head p { color: var(--ink-2); }
+
+  /* Scale legend */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 16px 32px;
+    padding: 16px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .legend-scale { display: grid; gap: 6px; flex: 1 1 280px; max-width: 420px; }
+  .legend-title { font-size: 13px; color: var(--ink-2); }
+  .legend-bar { height: 12px; border-radius: 3px; background: var(--ramp); }
+  .legend-ticks { position: relative; height: 16px; font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .legend-ticks span { position: absolute; top: 0; transform: translateX(-50%); }
+  .legend-ticks span:first-child { transform: none; }
+  .legend-tick-mark { position: absolute; top: -6px; width: 1px; height: 4px; background: var(--axis); }
+  .legend-correct { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); padding-bottom: 18px; }
+  .swatch { width: 22px; height: 12px; border-radius: 3px; background: var(--neutral-cell); box-shadow: inset 0 0 0 1px var(--border); }
+
+  /* Cards */
+  .pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+  .groups { display: grid; gap: 24px; }
+  .group { display: grid; gap: 10px; }
+  .group-title { font-size: 12px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); }
+  .grid-auto { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    display: grid;
+    gap: 14px;
+    align-content: start;
+  }
+  .card-head { display: grid; gap: 2px; }
+  .card-sub { font-size: 13px; color: var(--ink-2); }
+  .card-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    font-size: 13px;
+    color: var(--ink-2);
+    border-top: 1px solid var(--grid);
+    padding-top: 10px;
+    font-variant-numeric: tabular-nums;
+  }
+  .card-foot strong { color: var(--ink); font-weight: 600; }
+
+  /* Matrix */
+  .matrix {
+    display: grid;
+    grid-template-columns: max-content 1fr 1fr;
+    gap: 2px;
+  }
+  .axis-label {
+    font-size: 12px;
+    color: var(--ink-2);
+    display: flex;
+    align-items: flex-end;
+    padding: 0 4px 4px;
+    line-height: 1.25;
+  }
+  .axis-label.row { align-items: center; justify-content: flex-end; text-align: right; padding: 0 10px 0 0; }
+  .axis-label.col { justify-content: center; text-align: center; }
+  .axis-label .n { display: block; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+  .cell {
+    --cell-bg: var(--neutral-cell);
+    --cell-ink: var(--ink);
+    --cell-ink-2: var(--ink-2);
+    background: var(--cell-bg);
+    color: var(--cell-ink);
+    border-radius: 4px;
+    min-height: 96px;
+    padding: 10px 12px;
+    display: grid;
+    align-content: center;
+    gap: 2px;
+    cursor: default;
+    outline: none;
+    transition: box-shadow 120ms ease;
+  }
+  .cell.err {
+    --cell-bg: var(--fill-l);
+    --cell-ink: var(--ink-l);
+    --cell-ink-2: var(--ink-l);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .cell.err {
+      --cell-bg: var(--fill-d);
+      --cell-ink: var(--ink-d);
+      --cell-ink-2: var(--ink-d);
+    }
+  }
+  :root[data-theme="dark"] .cell.err {
+    --cell-bg: var(--fill-d);
+    --cell-ink: var(--ink-d);
+    --cell-ink-2: var(--ink-d);
+  }
+  .cell:hover, .cell:focus-visible { box-shadow: inset 0 0 0 2px var(--ink); }
+  .cell .count { font-size: 24px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .cell .rate { font-size: 12px; color: var(--cell-ink-2); font-variant-numeric: tabular-nums; }
+  .cell .kind { font-size: 12px; color: var(--cell-ink-2); }
+  .cell.err .rate, .cell.err .kind { opacity: 0.88; }
+  .compact .cell { min-height: 68px; padding: 8px 10px; }
+  .compact .cell .count { font-size: 18px; }
+  .compact .cell .kind { display: none; }
+
+  .callout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 40px;
+    padding: 16px 18px;
+    border-radius: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+  .callout div { display: grid; gap: 2px; min-width: 150px; }
+  .callout .big { font-size: 28px; font-weight: 600; line-height: 1.1; }
+  .callout .lbl { font-size: 13px; color: var(--ink-2); max-width: 30ch; }
+
+  /* Table view */
+  details {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+  }
+  summary { cursor: pointer; font-weight: 500; }
+  summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+  .table-wrap { overflow-x: auto; margin-top: 14px; }
+  table { border-collapse: collapse; font-size: 13px; min-width: 640px; width: 100%; }
+  th, td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  th { font-weight: 600; color: var(--ink-2); }
+  caption { text-align: left; font-weight: 600; padding: 12px 0 6px; }
+
+  .notes { font-size: 13px; color: var(--ink-2); display: grid; gap: 6px; max-width: 80ch; }
+  code { font-size: 12px; background: var(--neutral-cell); padding: 1px 5px; border-radius: 4px; }
+
+  .tooltip {
+    position: fixed;
+    z-index: 10;
+    pointer-events: none;
+    background: var(--surface);
+    color: var(--ink);
+    border: 1px solid var(--border);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 13px;
+    max-width: 260px;
+    display: grid;
+    gap: 2px;
+  }
+  .tooltip .tt-value { font-weight: 600; font-size: 15px; font-variant-numeric: tabular-nums; }
+  .tooltip .tt-label { color: var(--ink-2); }
+
+  @media (prefers-reduced-motion: reduce) { .cell { transition: none; } }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">email-dataset · 18,514 unique emails · spam if score ≥ 0.5</div>
+    <h1>Where each spam filter goes wrong</h1>
+    <p class="lede">Confusion matrices for TypeSafe's Jev model, which used no labeled data, and TF-IDF classifiers trained on about 14,800 labeled emails. Blue cells are mistakes, on one shared scale; gray cells are correct.</p>
+  </header>
+
+  <div class="legend" aria-label="Color scale">
+    <div class="legend-scale">
+      <div class="legend-title">Wrong predictions (emails)</div>
+      <div class="legend-bar" role="img" aria-label="Light to dark blue, 0 to 700 emails"></div>
+      <div class="legend-ticks" id="legend-ticks"></div>
+    </div>
+    <div class="legend-correct"><span class="swatch" aria-hidden="true"></span>Correct predictions</div>
+  </div>
+
+  <section aria-labelledby="h2h">
+    <div class="section-head">
+      <h2 id="h2h">Head to head: about 300 mistakes each, leaning opposite ways</h2>
+      <p>TypeSafe flags more real mail as spam; logistic regression lets more spam through.</p>
+    </div>
+    <div class="pair" id="pair"></div>
+  </section>
+
+  <section aria-labelledby="all5">
+    <div class="section-head">
+      <h2 id="all5">All five approaches</h2>
+      <p>The structured criteria cut ham wrongly flagged as spam from 694 to 203. Averaging TypeSafe with logistic regression roughly halves both kinds of mistake.</p>
+    </div>
+    <div class="groups">
+      <div class="group">
+        <h3 class="group-title">No labeled data</h3>
+        <div class="grid-auto" id="grid-zero"></div>
+      </div>
+      <div class="group">
+        <h3 class="group-title">Uses labeled data</h3>
+        <div class="grid-auto" id="grid-labeled"></div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="agree">
+    <div class="section-head">
+      <h2 id="agree">Their mistakes barely overlap</h2>
+      <p>Rows are TypeSafe's call, columns are logistic regression's, split by the email's true label. Only 71 emails fool both.</p>
+    </div>
+    <div class="pair" id="agreement"></div>
+    <div class="callout">
+      <div><span class="big" id="c-ts-only">228</span><span class="lbl">emails only TypeSafe gets right</span></div>
+      <div><span class="big" id="c-lr-only">238</span><span class="lbl">emails only logistic regression gets right</span></div>
+      <div><span class="big" id="c-both">71</span><span class="lbl">emails both get wrong, many of them mislabeled or genuinely borderline</span></div>
+    </div>
+  </section>
+
+  <details>
+    <summary>Show every number as a table</summary>
+    <div class="table-wrap">
+      <table id="table-models">
+        <caption>Confusion matrices</caption>
+        <thead>
+          <tr><th scope="col">Approach</th><th scope="col">Labels used</th><th scope="col">Correct ham</th><th scope="col">Ham flagged as spam</th><th scope="col">Missed spam</th><th scope="col">Correct spam</th><th scope="col">Accuracy</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <table id="table-agree">
+        <caption>TypeSafe (structured criteria) vs TF-IDF logistic regression</caption>
+        <thead>
+          <tr><th scope="col">True label</th><th scope="col">Both right</th><th scope="col">Only TypeSafe right</th><th scope="col">Only logreg right</th><th scope="col">Both wrong</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </details>
+
+  <div class="notes">
+    <p>TypeSafe model: jev-1.13.0, one Noul question per email. Structured criteria spell out that newsletters, promos the reader signed up for, and delivery notices are not spam.</p>
+    <p>TF-IDF scores are out-of-fold from 5-fold cross-validation, with near-copies (80% or more similar) kept on the same side of each split. Exact duplicate emails were removed first.</p>
+    <p>Data: <code>results_criteria_all.jsonl</code> and <code>tfidf_oof.jsonl</code>.</p>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip" role="status" hidden>
+  <span class="tt-value" id="tt-value"></span>
+  <span class="tt-label" id="tt-label"></span>
+</div>
+
+<script>
+(function () {
+  var HAM = 10415, SPAM = 8099, SCALE_MAX = 700;
+  var MODELS = [
+    { name: "TypeSafe, bare question", labels: "0 labels", tn: 9721, fp: 694, fn: 54, tp: 8045 },
+    { name: "TypeSafe, structured criteria", labels: "0 labels", tn: 10212, fp: 203, fn: 106, tp: 7993 },
+    { name: "TF-IDF logistic regression", labels: "~14.8K labels", tn: 10265, fp: 150, fn: 149, tp: 7950 },
+    { name: "TF-IDF naive Bayes", labels: "~14.8K labels", tn: 10240, fp: 175, fn: 367, tp: 7732 },
+    { name: "Average of structured + logreg", labels: "~14.8K labels", tn: 10340, fp: 75, fn: 69, tp: 8030 }
+  ];
+  // Rows: TypeSafe says ham / spam. Columns: logreg says ham / spam.
+  var AGREE = [
+    { label: "Actual ham", total: HAM, cells: [[10100, 112], [165, 38]], right: 0 },
+    { label: "Actual spam", total: SPAM, cells: [[33, 73], [116, 7877]], right: 1 }
+  ];
+
+  var RAMP = ["#cde2fb", "#b7d3f6", "#9ec5f4", "#86b6ef", "#6da7ec", "#5598e7", "#3987e5", "#2a78d6", "#256abf", "#1c5cab", "#184f95", "#104281", "#0d366b"];
+  var INK_DARK = "#0b0b0b", INK_LIGHT = "#ffffff";
+
+  function hexToRgb(h) { return [1, 3, 5].map(function (i) { return parseInt(h.slice(i, i + 2), 16); }); }
+  function rgbToHex(c) { return "#" + c.map(function (v) { return Math.round(v).toString(16).padStart(2, "0"); }).join(""); }
+  function rampAt(stops, t) {
+    t = Math.max(0, Math.min(1, t));
+    var pos = t * (stops.length - 1), i = Math.min(Math.floor(pos), stops.length - 2), f = pos - i;
+    var a = hexToRgb(stops[i]), b = hexToRgb(stops[i + 1]);
+    return rgbToHex(a.map(function (v, k) { return v + (b[k] - v) * f; }));
+  }
+  function luminance(hex) {
+    return hexToRgb(hex).map(function (v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); })
+      .reduce(function (s, v, i) { return s + v * [0.2126, 0.7152, 0.0722][i]; }, 0);
+  }
+  function contrast(a, b) { var la = luminance(a), lb = luminance(b); return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05); }
+  function inkFor(fill) { return contrast(fill, INK_LIGHT) >= contrast(fill, INK_DARK) ? INK_LIGHT : INK_DARK; }
+  var DARK_RAMP = RAMP.slice().reverse();
+
+  var fmt = function (n) { return n.toLocaleString("en-US"); };
+  var pct = function (n, d) { return (100 * n / d).toFixed(2) + "%"; };
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+  // Tooltip
+  var tip = document.getElementById("tooltip"), tipValue = document.getElementById("tt-value"), tipLabel = document.getElementById("tt-label");
+  function placeTip(x, y) {
+    var r = tip.getBoundingClientRect(), pad = 12;
+    var left = Math.min(x + pad, window.innerWidth - r.width - 8), top = y + pad;
+    if (top + r.height > window.innerHeight - 8) top = y - r.height - pad;
+    tip.style.left = Math.max(8, left) + "px";
+    tip.style.top = Math.max(8, top) + "px";
+  }
+  function bindTip(cell, value, label) {
+    cell.addEventListener("pointermove", function (e) { tipValue.textContent = value; tipLabel.textContent = label; tip.hidden = false; placeTip(e.clientX, e.clientY); });
+    cell.addEventListener("pointerleave", function () { tip.hidden = true; });
+    cell.addEventListener("focus", function () { tipValue.textContent = value; tipLabel.textContent = label; tip.hidden = false; var r = cell.getBoundingClientRect(); placeTip(r.left + r.width / 2, r.bottom - 8); });
+    cell.addEventListener("blur", function () { tip.hidden = true; });
+  }
+
+  function makeCell(count, isError, rateText, kindText, tipLabelText) {
+    var cell = el("div", "cell" + (isError ? " err" : ""));
+    cell.tabIndex = 0;
+    cell.setAttribute("role", "gridcell");
+    if (isError) {
+      var t = count / SCALE_MAX, fl = rampAt(RAMP, t), fd = rampAt(DARK_RAMP, t);
+      cell.style.setProperty("--fill-l", fl);
+      cell.style.setProperty("--fill-d", fd);
+      cell.style.setProperty("--ink-l", inkFor(fl));
+      cell.style.setProperty("--ink-d", inkFor(fd));
+    }
+    cell.appendChild(el("span", "count", fmt(count)));
+    if (rateText) cell.appendChild(el("span", "rate", rateText));
+    if (kindText) cell.appendChild(el("span", "kind", kindText));
+    cell.setAttribute("aria-label", fmt(count) + " emails. " + tipLabelText);
+    bindTip(cell, fmt(count) + " emails", tipLabelText);
+    return cell;
+  }
+
+  function axisLabel(cls, text, n) {
+    var a = el("div", "axis-label " + cls);
+    var wrap = el("span", null, text);
+    if (n != null) { wrap.appendChild(el("span", "n", fmt(n))); }
+    a.appendChild(wrap);
+    return a;
+  }
+
+  function modelMatrix(m, compact) {
+    var g = el("div", "matrix" + (compact ? " compact" : ""));
+    g.setAttribute("role", "grid");
+    g.setAttribute("aria-label", "Confusion matrix for " + m.name);
+    g.appendChild(el("div"));
+    g.appendChild(axisLabel("col", "Predicted ham"));
+    g.appendChild(axisLabel("col", "Predicted spam"));
+    g.appendChild(axisLabel("row", "Actual ham", HAM));
+    g.appendChild(makeCell(m.tn, false, pct(m.tn, HAM), "correct", m.name + ": ham correctly passed (" + pct(m.tn, HAM) + " of ham)"));
+    g.appendChild(makeCell(m.fp, true, pct(m.fp, HAM), "flagged as spam", m.name + ": ham wrongly flagged as spam (" + pct(m.fp, HAM) + " of ham)"));
+    g.appendChild(axisLabel("row", "Actual spam", SPAM));
+    g.appendChild(makeCell(m.fn, true, pct(m.fn, SPAM), "missed spam", m.name + ": spam that got through (" + pct(m.fn, SPAM) + " of spam)"));
+    g.appendChild(makeCell(m.tp, false, pct(m.tp, SPAM), "correct", m.name + ": spam correctly caught (" + pct(m.tp, SPAM) + " of spam)"));
+    return g;
+  }
+
+  function modelCard(m, compact) {
+    var card = el("article", "card");
+    var head = el("div", "card-head");
+    head.appendChild(el("h3", null, m.name));
+    head.appendChild(el("span", "card-sub", m.labels));
+    card.appendChild(head);
+    card.appendChild(modelMatrix(m, compact));
+    var foot = el("div", "card-foot");
+    var acc = el("span"); acc.appendChild(el("strong", null, pct(m.tn + m.tp, HAM + SPAM))); acc.appendChild(document.createTextNode(" accurate"));
+    var wrong = el("span"); wrong.appendChild(el("strong", null, fmt(m.fp + m.fn))); wrong.appendChild(document.createTextNode(" wrong"));
+    foot.appendChild(acc); foot.appendChild(wrong);
+    card.appendChild(foot);
+    return card;
+  }
+
+  var pair = document.getElementById("pair");
+  pair.appendChild(modelCard(MODELS[1], false));
+  pair.appendChild(modelCard(MODELS[2], false));
+
+  var gridZero = document.getElementById("grid-zero"), gridLabeled = document.getElementById("grid-labeled");
+  MODELS.forEach(function (m) { (m.labels === "0 labels" ? gridZero : gridLabeled).appendChild(modelCard(m, true)); });
+
+  var KIND = function (tsRight, lrRight) {
+    if (tsRight && lrRight) return "both right";
+    if (tsRight) return "only TypeSafe right";
+    if (lrRight) return "only logreg right";
+    return "both wrong";
+  };
+  var agreement = document.getElementById("agreement");
+  AGREE.forEach(function (a) {
+    var card = el("article", "card");
+    var head = el("div", "card-head");
+    head.appendChild(el("h3", null, a.label));
+    head.appendChild(el("span", "card-sub", fmt(a.total) + " emails"));
+    card.appendChild(head);
+    var g = el("div", "matrix");
+    g.setAttribute("role", "grid");
+    g.setAttribute("aria-label", "Agreement between TypeSafe and logistic regression, " + a.label);
+    g.appendChild(el("div"));
+    g.appendChild(axisLabel("col", "Logreg says ham"));
+    g.appendChild(axisLabel("col", "Logreg says spam"));
+    ["ham", "spam"].forEach(function (tsCall, r) {
+      g.appendChild(axisLabel("row", "TypeSafe says " + tsCall));
+      [0, 1].forEach(function (c) {
+        var n = a.cells[r][c], tsRight = r === a.right, lrRight = c === a.right, kind = KIND(tsRight, lrRight);
+        g.appendChild(makeCell(n, !(tsRight && lrRight), pct(n, a.total), kind,
+          a.label + ": " + kind + " (TypeSafe says " + tsCall + ", logreg says " + (c ? "spam" : "ham") + ")"));
+      });
+    });
+    card.appendChild(g);
+    agreement.appendChild(card);
+  });
+
+  // Legend ticks on the same 0-700 scale as the cells.
+  var ticks = document.getElementById("legend-ticks");
+  [0, 200, 400, 600].forEach(function (v) {
+    var s = el("span", null, fmt(v));
+    s.style.left = (100 * v / SCALE_MAX) + "%";
+    ticks.appendChild(s);
+    var mark = el("i", "legend-tick-mark");
+    mark.style.left = (100 * v / SCALE_MAX) + "%";
+    ticks.appendChild(mark);
+  });
+
+  // Table view
+  var tb = document.querySelector("#table-models tbody");
+  MODELS.forEach(function (m) {
+    var tr = el("tr");
+    [m.name, m.labels, fmt(m.tn), fmt(m.fp), fmt(m.fn), fmt(m.tp), pct(m.tn + m.tp, HAM + SPAM)].forEach(function (v, i) {
+      tr.appendChild(el(i === 0 ? "th" : "td", null, v));
+      if (i === 0) tr.lastChild.setAttribute("scope", "row");
+    });
+    tb.appendChild(tr);
+  });
+  var ta = document.querySelector("#table-agree tbody");
+  AGREE.forEach(function (a) {
+    var both = a.cells[a.right][a.right], tsOnly = a.cells[a.right][1 - a.right], lrOnly = a.cells[1 - a.right][a.right], none = a.cells[1 - a.right][1 - a.right];
+    var tr = el("tr");
+    [a.label, fmt(both), fmt(tsOnly), fmt(lrOnly), fmt(none)].forEach(function (v, i) {
+      tr.appendChild(el(i === 0 ? "th" : "td", null, v));
+      if (i === 0) tr.lastChild.setAttribute("scope", "row");
+    });
+    ta.appendChild(tr);
+  });
+})();
+</script>
+
+</body>
+</html>
