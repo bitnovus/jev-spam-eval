@@ -5,6 +5,12 @@ filter with no training data at all? It runs Jev as a zero-shot spam filter on
 [realprogrammersusevim/email-dataset](https://github.com/realprogrammersusevim/email-dataset)
 (19,528 emails) and compares it with TF-IDF classifiers trained on the dataset's own labels.
 
+Cost is part of the motivation. Jev is priced at $0.042 per million input tokens ($42 per billion,
+as listed on [typesafe.ai](https://typesafe.ai)), and output tokens are free
+([The Rundown](https://www.therundown.ai/news/typesafe-jev-ai-decisions-software)). At that price a
+model-based check on every email is cheap: the full run over all 19,528 emails, with four
+questions per email, cost about $1.12.
+
 > **This is an exploratory experiment, not a benchmark.** It was run once, on one public dataset,
 > with one model version (`jev-1.13.0`, September 2026). The question design changed as the
 > experiment went on, and the best-performing criteria were written after reading this dataset's
@@ -50,6 +56,9 @@ the same side of the split.
 - **A review band works well.** Sending emails scored 0.3–0.7 to a person (855 emails, 4.6%) leaves
   99.50% accuracy on the rest; 0.2–0.8 (8.1%) leaves 99.76%. At the same 4.6% review rate,
   logistic regression reaches 99.58% and the average of both 99.87%.
+- **It is cheap to run.** The full run used about 1,370 input tokens per email with four questions,
+  which is $0.058 per 1,000 emails, or about $58 per million, at $0.042 per million input tokens.
+  Every run in `results/` together used 30.4M input tokens, about $1.28.
 
 ## The question that worked
 
@@ -132,7 +141,8 @@ then tested on a fresh sample (seed 3) that excludes every email from those two.
   corpora, which may be in Jev's training data. This could not be checked.
 - **One model version and one run.** Results are from `jev-1.13.0` (served as `jev-latest`) in
   September 2026. Scores close to 0.5 can shift slightly between runs; the same 500-email sample
-  scored 0.980 and 0.978 with the bare question on two runs.
+  scored 0.980 and 0.978 with the bare question on two runs. Costs use the price listed in
+  September 2026.
 - **Duplicates and empty files.** The dataset has 815 groups of exact duplicates (none labeled both
   ways) and about 100 near-empty files. The main tables remove exact duplicates.
 
@@ -168,8 +178,8 @@ uv run spam_noul.py --questions criteria --all --concurrency 16    # add --resum
 ```
 
 A 500-email sample takes about 10 seconds. The full run took 206 seconds at 16 concurrent requests
-and used 26.7M input and 1.6M output tokens with four questions per email; a single question uses
-fewer.
+and used 26.7M input and 1.6M output tokens with four questions per email (about $1.12, since only
+input tokens are billed); a single question uses fewer. A 500-email sample costs about $0.03.
 
 ## Repository layout
 
