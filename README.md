@@ -175,6 +175,13 @@ uv run analyze.py           # duplicates, subsets, score reliability, review rat
 uv run tfidf_baseline.py    # trains the TF-IDF models (about a minute), writes results/tfidf_oof.jsonl
 ```
 
+`report/confusion_matrices.ipynb` draws the confusion matrices from `results/tfidf_oof.jsonl` and
+lets you try a different cutoff. GitHub shows it with its charts; to run it again:
+
+```sh
+uv run jupyter nbconvert --to notebook --execute --inplace report/confusion_matrices.ipynb
+```
+
 Run the classification again. This calls the API and overwrites the matching file in `results/`:
 
 ```sh
@@ -202,7 +209,7 @@ use fewer tokens.
 | `analyze.py` | Analyzes the full run: duplicates, subsets, score reliability, cutoffs and review rates |
 | `fetch_dataset.sh` | Downloads the dataset at commit `84209612` |
 | `results/` | Scores and token counts for each email, without the email text |
-| `report/` | Confusion-matrix page (`confusion_matrices.html`) |
+| `report/` | Confusion-matrix notebook (`confusion_matrices.ipynb`) and page (`confusion_matrices.html`) |
 
 ## Data
 
