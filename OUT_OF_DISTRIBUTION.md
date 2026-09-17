@@ -18,8 +18,8 @@ whose questions were not changed for these emails.
 | **Modern mail**, 2026, legitimate or not | Current mailing-list posts and spam-trap mail; TF-IDF trained on 2005–07 mail | **97.3%** accuracy (with urgency and authority) | **72.5%** accuracy |
 
 On every dataset in this repository, TF-IDF trained on that dataset's own labels matched or beat
-TypeSafe. On unfamiliar email it fell 25 points or more behind, while TypeSafe scored about what it
-always does.
+TypeSafe. On unfamiliar email it fell more than 20 points behind, while TypeSafe scored about what
+it always does.
 
 ## 1. Ling-Spam
 
