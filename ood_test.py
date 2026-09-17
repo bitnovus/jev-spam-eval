@@ -96,7 +96,7 @@ def binary_line(name: str, spam_scores: np.ndarray, is_spam: np.ndarray) -> None
           f"missed spam {fn:4d}  ham flagged {fp:4d}")
 
 
-def test_lingspam() -> None:
+def test_lingspam() -> list[dict]:
     train_rows, train_texts = load_unique_rows("email")
     vec, model = fit(train_texts, [r["label"] == "spam" for r in train_rows])
     rows, texts = load_unique_rows("lingspam")
@@ -105,8 +105,11 @@ def test_lingspam() -> None:
           f"TF-IDF trained on {len(train_rows):,} email-dataset emails ===")
     binary_line("TypeSafe, plain question", np.array([r["nouls"]["spam_plain"] for r in rows]), is_spam)
     binary_line("TypeSafe, detailed criteria", np.array([r["nouls"]["spam_structured_criteria"] for r in rows]), is_spam)
-    binary_line("TF-IDF logistic regression (email-dataset)", model.predict_proba(vec.transform(texts))[:, 1], is_spam)
+    spam_probability = model.predict_proba(vec.transform(texts))[:, 1]
+    binary_line("TF-IDF logistic regression (email-dataset)", spam_probability, is_spam)
     print("  (for reference, TF-IDF trained on Ling-Spam itself scored 0.9857 accuracy in cross-validation)")
+    return [{"set": "lingspam", "file": r["file"], "label": r["label"], "spam_probability": round(float(p), 6)}
+            for r, p in zip(rows, spam_probability)]
 
 
 def three_way_model():
@@ -124,16 +127,18 @@ def calls_line(name: str, calls: list[str]) -> None:
     print(f"  {name:48s} legitimate {counts['ham'] / n:6.1%}  spam {counts['spam'] / n:6.1%}  phishing {counts['phish'] / n:6.1%}")
 
 
-def test_recent_phishing(vec, model) -> None:
+def test_recent_phishing(vec, model) -> list[dict]:
     rows = [r for r in map(json.loads, (RESULTS_DIR / "phish_recent.jsonl").open()) if "choices" in r]
     predictions = model.predict(vec.transform([text_of(r["file"]) for r in rows]))
     print(f"\n=== 2. Recent phishing (2024-25): {len(rows)} messages, all phishing ===")
     for question in phish.QUESTIONS:
         calls_line(f"TypeSafe, {question}", [phish.predicted(r, question) for r in rows])
     calls_line("TF-IDF (trained on 2005-07 mail)", [phish.CLASSES[k] for k in predictions])
+    return [{"set": "recent_phishing", "file": r["file"], "label": r["label"], "tfidf_call": phish.CLASSES[k]}
+            for r, k in zip(rows, predictions)]
 
 
-def test_modern(rows: list[dict], vec, model) -> None:
+def test_modern(rows: list[dict], vec, model) -> list[dict]:
     rows = [r for r in rows if "choices" in r]
     predictions = [phish.CLASSES[k] for k in model.predict(vec.transform([text_of(r["file"]) for r in rows]))]
     print(f"\n=== 3. Modern mail (2026): {len(rows)} messages ===")
@@ -163,6 +168,8 @@ def test_modern(rows: list[dict], vec, model) -> None:
             e = read_ood(rows[i]["file"])
             print(f"    TypeSafe {phish.predicted(rows[i], question):5s} TF-IDF {predictions[i]:5s}  "
                   f"subject={e['subject'][:50]!r}  from={e.get('from', '')[:30]!r}")
+    return [{"set": "modern", "file": r["file"], "label": r["label"], "tfidf_call": p}
+            for r, p in zip(rows, predictions)]
 
 
 def main() -> None:
@@ -181,10 +188,15 @@ def main() -> None:
     tokens = sum(r.get("input_tokens") or 0 for r in modern)
     print(f"modern mail: {len(modern)} rows, {errors} errors, {tokens:,} input tokens (${tokens * phish.PRICE_PER_INPUT_TOKEN:.2f})")
 
-    test_lingspam()
+    saved = test_lingspam()
     vec, model = three_way_model()
-    test_recent_phishing(vec, model)
-    test_modern(modern, vec, model)
+    saved += test_recent_phishing(vec, model)
+    saved += test_modern(modern, vec, model)
+    out_predictions = RESULTS_DIR / "ood_tfidf_predictions.jsonl"
+    with out_predictions.open("w") as f:
+        for row in saved:
+            f.write(json.dumps(row) + "\n")
+    print(f"\nwrote {out_predictions.name}")
 
 
 if __name__ == "__main__":

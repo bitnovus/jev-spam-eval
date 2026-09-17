@@ -174,10 +174,15 @@ uv run phish.py --report                      # rebuild the report from saved re
 uv run phish.py --all --concurrency 16        # run again (calls the API); add --resume to retry failures
 ```
 
-`--report` retrains the TF-IDF models, which takes about a minute. Results are in
-`results/phish_main_all.jsonl`, `results/phish_fresh.jsonl` and `results/phish_recent.jsonl`. They
-hold each message's answers, not its text: phishing messages are referred to by mailbox name and
-position, such as `phishing3.mbox#12`.
+`--report` retrains the TF-IDF models, which takes about a minute, and saves their predictions to
+`results/phish_tfidf_predictions.jsonl`. The answers are in `results/phish_main_all.jsonl`,
+`results/phish_fresh.jsonl` and `results/phish_recent.jsonl`. These files hold each message's
+answers, not its text: phishing messages are referred to by mailbox name and position, such as
+`phishing3.mbox#12`.
+
+`report/phishing_matrices.ipynb` charts all of this: where each approach put every email, what
+changed when urgency and authority were added, and how accuracy varies with how sure the model was.
+GitHub shows it with its charts, and it reads only the files in `results/`.
 
 ## Credit
 

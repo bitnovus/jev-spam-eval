@@ -301,7 +301,7 @@ use fewer tokens.
 | `ood_test.py`, `OUT_OF_DISTRIBUTION.md` | The out-of-distribution test |
 | `fetch_nazario.sh`, `fetch_ood.sh` | Download the phishing corpus and the 2026 mail |
 | `results/` | Scores and token counts for each email, without the email text |
-| `report/` | Confusion-matrix notebook (`confusion_matrices.ipynb`) and page (`confusion_matrices.html`) |
+| `report/` | Notebooks of charts: `confusion_matrices.ipynb` (spam or ham) and `phishing_matrices.ipynb` (three categories), plus `confusion_matrices.html` |
 
 ## Data
 

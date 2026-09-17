@@ -320,6 +320,16 @@ def report_recent(rows: list[dict]) -> None:
                   f"spam {calls['spam'] / len(subset):.1%}  legitimate {calls['ham'] / len(subset):.1%}")
 
 
+def save_predictions(path, rows_by_set: dict[str, tuple[list[dict], np.ndarray]]) -> None:
+    """Per-message TF-IDF class probabilities, so reports and notebooks don't have to retrain."""
+    with path.open("w") as f:
+        for set_name, (rows, probs) in rows_by_set.items():
+            for row, p in zip(rows, probs):
+                f.write(json.dumps({"set": set_name, "file": row["file"], "label": row["label"],
+                                    "probabilities": dict(zip(CLASSES, p.round(6)))}) + "\n")
+    print(f"wrote {path.name}")
+
+
 def report(results: dict[str, list[dict]]) -> None:
     for name, rows in results.items():
         errors = sum("error" in r for r in rows)
@@ -328,18 +338,24 @@ def report(results: dict[str, list[dict]]) -> None:
     ok = {name: [r for r in rows if "choices" in r] for name, rows in results.items()}
     print(f"model {ok['main'][0]['model']}")
 
-    report_set("main test", ok["main"], tfidf_cross_validated(ok["main"]),
+    main_probs = tfidf_cross_validated(ok["main"])
+    saved = {"main": (ok["main"], main_probs)}
+    report_set("main test", ok["main"], main_probs,
                "TF-IDF logistic regression (5-fold CV, near-copies kept together)")
     if "fresh" in ok:
         probs = tfidf_trained_on(ok["main"], ok["fresh"])
+        saved["fresh"] = (ok["fresh"], probs)
         label = "TF-IDF logistic regression (trained on the main test)"
         report_set("fresh test", ok["fresh"], probs, label)
         copies = near_copies(ok["fresh"], ok["main"])
         print(f"\nfresh messages with a near-copy (cosine >= 0.8) in the main test: {int(copies.sum())} "
               f"{dict(Counter(r['label'] for r, c in zip(ok['fresh'], copies) if c))}")
         report_set("fresh test without near-copies of main-test messages", ok["fresh"], probs, label, ~copies)
+        for row, near in zip(ok["fresh"], copies):
+            row["near_copy_of_main"] = bool(near)
     if "recent" in ok:
         report_recent(ok["recent"])
+    save_predictions(RESULTS_DIR / "phish_tfidf_predictions.jsonl", saved)
 
 
 async def run(items: list[dict], out, concurrency: int, resume: bool) -> list[dict]:

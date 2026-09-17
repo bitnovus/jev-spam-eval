@@ -120,7 +120,9 @@ uv run ood_test.py --concurrency 16     # classify the modern mail again (calls 
 ```
 
 The modern-mail answers are in `results/ood_modern.jsonl`, which refers to messages by file name
-and position, not text. The report retrains both TF-IDF models, which takes about a minute.
+and position, not text. The report retrains both TF-IDF models, which takes about a minute, and
+saves their predictions to `results/ood_tfidf_predictions.jsonl`. The last chart in
+`report/phishing_matrices.ipynb` compares the two approaches on all three tests here.
 
 ## Credit
 
