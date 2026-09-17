@@ -143,8 +143,9 @@ of email, not whether it is commercial or sent to many people. It didn't help.
 
 ## Second dataset: Ling-Spam
 
-[Ling-Spam](https://www.aueb.gr/users/ion/data/lingspam_public.tar.gz) (Androutsopoulos et al.,
-2000) has 2,893 messages: 2,412 legitimate posts from the Linguist mailing list and 481 spam
+[Ling-Spam](https://www.aueb.gr/users/ion/data/lingspam_public.tar.gz) was created by Ion
+Androutsopoulos and colleagues (2000) and is used here with thanks; see
+[Acknowledgments](#acknowledgments). It has 2,893 messages: 2,412 legitimate posts from the Linguist mailing list and 481 spam
 messages. This test uses its "bare" version, which keeps every word. The text is already lowercased,
 and each message has only a subject line and a body. None of its messages appear
 in email-dataset, and only 2 are 90% or more similar to a message there. As with the first dataset,
@@ -237,8 +238,9 @@ uv run spam_noul.py --dataset lingspam --questions criteria --all --report
 uv run tfidf_baseline.py --dataset lingspam    # writes results/lingspam_tfidf_oof.jsonl
 ```
 
-`report/confusion_matrices.ipynb` draws the confusion matrices from `results/tfidf_oof.jsonl` and
-lets you try a different cutoff. GitHub shows it with its charts; to run it again:
+`report/confusion_matrices.ipynb` draws the confusion matrices for both datasets from
+`results/tfidf_oof.jsonl` and `results/lingspam_tfidf_oof.jsonl`, and lets you try a different
+cutoff. GitHub shows it with its charts; to run it again:
 
 ```sh
 uv run jupyter nbconvert --to notebook --execute --inplace report/confusion_matrices.ipynb
@@ -288,6 +290,16 @@ and notify its author.
 
 This repository doesn't include messages from either dataset: `results/` refers to them only by file
 path.
+
+## Acknowledgments
+
+Thanks to I. Androutsopoulos, J. Koutsias, K.V. Chandrinos, G. Paliouras and C.D. Spyropoulos for
+creating the Ling-Spam corpus and making it freely available. It has been a standard test set for
+spam filtering since 2000, and this experiment's second test would not exist without it. Their paper
+is cited in [Data](#data).
+
+Thanks also to the creators of [email-dataset](https://github.com/realprogrammersusevim/email-dataset)
+for publishing it under the MIT license.
 
 ## License
 
