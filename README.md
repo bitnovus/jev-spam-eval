@@ -1,14 +1,26 @@
-# Spam or ham with TypeSafe Noul questions
+# Sorting email with TypeSafe questions
 
-An experiment: how close can [TypeSafe](https://typesafe.ai)'s Jev model get to a trained spam
-filter without any training data? Jev sorts the 19,528 emails in
-[realprogrammersusevim/email-dataset](https://github.com/realprogrammersusevim/email-dataset) into
-spam and ham (legitimate mail) without seeing any labeled examples. Its results are compared with
-standard word-frequency (TF-IDF) classifiers trained on the dataset's own labels. A second test on
-the classic [Ling-Spam](#second-dataset-ling-spam) corpus checks whether the approach carries over.
-Two further experiments follow: sorting mail into [ham, spam or phishing](PHISHING.md), and an
-[out-of-distribution test](OUT_OF_DISTRIBUTION.md) on email unlike anything the classifiers were
-trained on, where they lose 25 points or more and TypeSafe doesn't.
+Experiments on whether [TypeSafe](https://typesafe.ai)'s Jev model can sort email as well as a
+trained classifier, using questions in plain English and no training data. Jev is asked whether an
+email is spam, or which of legitimate, spam and phishing it is, and its answers are compared with
+word-frequency (TF-IDF) classifiers trained on each dataset's own labels. Four public email
+collections are used, spanning 2000 to 2026.
+
+**The main finding: a trained classifier wins on the mail it was trained on, and loses badly on
+anything else.** On each dataset's own labels, TF-IDF matched or beat TypeSafe. On email from a
+different source or a different era, it fell 25 points or more behind, while TypeSafe scored about
+what it always does. Details in the [out-of-distribution test](OUT_OF_DISTRIBUTION.md).
+
+| Email unlike the classifier's training mail | TypeSafe (no training) | TF-IDF |
+|---|---|---|
+| Ling-Spam, a 2000 linguistics list: spam or legitimate | **98.6%** | 73.0% |
+| Phishing from 2024–25: share called phishing | **91.0–93.6%** | 70.3% |
+| 2026 list posts and spam-trap mail: legitimate or not | **97.3%** | 72.5% |
+
+The rest of this page covers the first experiment, spam or ham on
+[email-dataset](https://github.com/realprogrammersusevim/email-dataset) and
+[Ling-Spam](#second-dataset-ling-spam). Sorting mail into three categories, including phishing, is
+in [PHISHING.md](PHISHING.md).
 
 Cost is part of the motivation. Jev costs $0.042 per million input tokens ($42 per billion, as
 listed on [typesafe.ai](https://typesafe.ai)), and output tokens are free
@@ -16,12 +28,15 @@ listed on [typesafe.ai](https://typesafe.ai)), and output tokens are free
 running a model on every email is cheap: checking all 19,528 emails, with four questions per email,
 cost about $1.12.
 
-> **This is an exploratory experiment, not a benchmark.** It was run once per dataset, on two public
-> datasets, with one model version (`jev-1.13.0`, September 2026). The questions changed as the
-> experiment went on, and the best-performing wording was written after reading the first
-> dataset's mistakes; on the second dataset it did worse than the plain question. Treat the numbers
-> as a record of what happened here, not a general measure of spam-filter accuracy. See
-> [Caveats](#caveats).
+> **These are exploratory experiments, not benchmarks.** Each was run once, with one model version
+> (`jev-1.13.0`, September 2026). The questions changed as the work went on, and the
+> best-performing wording was written after reading the first dataset's mistakes; on the second
+> dataset it did worse than the plain question. The out-of-distribution sets are small: 2,876
+> Ling-Spam messages, 853 phishing emails and 633 modern ones. Treat the numbers as a record of what
+> happened here, not a general measure of spam-filter accuracy. See [Caveats](#caveats) and the
+> caveats in each write-up.
+
+## Spam or ham
 
 Each email is sent to the TypeSafe API with a yes/no question, "Is `email` spam?", and the API
 returns the probability that the answer is yes. TypeSafe calls this kind of question a
@@ -204,16 +219,12 @@ scored 0.99. Writing out what each category means mattered most: given only the 
 TypeSafe called more than half the spam phishing. Describing how phishing appeals to urgency and
 authority helped on the emails that prompted the change, and barely on a fresh set.
 
-**[Out-of-distribution test](OUT_OF_DISTRIBUTION.md).** Both approaches were shown email unlike
-anything the classifiers had learned from: Ling-Spam, phishing from 2024–25, and 2026 mailing-list
-posts and spam-trap mail. The trained classifiers dropped sharply. TypeSafe scored about what it
-always does.
-
-| Out-of-distribution test | TypeSafe | TF-IDF |
-|---|---|---|
-| Ling-Spam, spam or ham | 98.6% | 73.0% |
-| 2024–25 phishing, share called phishing | 91.0–93.6% | 70.3% |
-| 2026 mail, legitimate or not | 97.3% | 72.5% |
+**[Out-of-distribution test](OUT_OF_DISTRIBUTION.md).** The main finding above, in full: both
+approaches shown email unlike anything the classifiers had learned from, including 2026 mailing-list
+posts and spam-trap mail collected weeks before the run. It also records what each got wrong. The
+classifier passed 165 of 300 spam-trap emails as legitimate, among them AARP sign-ups and CVS points
+notices; TypeSafe caught 163 of those. TypeSafe's own false flags were mostly one person
+repeatedly promoting their software on a mailing list.
 
 ## Caveats
 
