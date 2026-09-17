@@ -24,8 +24,6 @@ returns the probability that the answer is yes. TypeSafe calls this kind of ques
 precisely: listing which kinds of mail count as spam and which don't raised accuracy from 96.0% to
 98.3%. That matches a logistic regression classifier trained on about 14,800 labeled emails.
 
-![Confusion matrices for each approach](report/confusion_matrices.png)
-
 ## Results
 
 These results cover the 18,514 unique emails (exact duplicates removed). An email counts as spam
@@ -204,7 +202,7 @@ use fewer tokens.
 | `analyze.py` | Analyzes the full run: duplicates, subsets, score reliability, cutoffs and review rates |
 | `fetch_dataset.sh` | Downloads the dataset at commit `84209612` |
 | `results/` | Scores and token counts for each email, without the email text |
-| `report/` | Confusion-matrix page (`confusion_matrices.html`) and its screenshot |
+| `report/` | Confusion-matrix page (`confusion_matrices.html`) |
 
 ## Data
 
