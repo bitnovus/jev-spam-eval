@@ -6,6 +6,9 @@ filter without any training data? Jev sorts the 19,528 emails in
 spam and ham (legitimate mail) without seeing any labeled examples. Its results are compared with
 standard word-frequency (TF-IDF) classifiers trained on the dataset's own labels. A second test on
 the classic [Ling-Spam](#second-dataset-ling-spam) corpus checks whether the approach carries over.
+Two further experiments follow: sorting mail into [ham, spam or phishing](PHISHING.md), and an
+[out-of-distribution test](OUT_OF_DISTRIBUTION.md) on email unlike anything the classifiers were
+trained on, where they lose 25 points or more and TypeSafe doesn't.
 
 Cost is part of the motivation. Jev costs $0.042 per million input tokens ($42 per billion, as
 listed on [typesafe.ai](https://typesafe.ai)), and output tokens are free
@@ -192,6 +195,26 @@ spam caught and the share of ham passed, so it isn't dominated by the much large
   across more than one part. Using those parts as the folds, as the original paper did, raises
   logistic regression from 0.9857 to 0.9910 and naive Bayes from 0.9941 to 0.9962.
 
+## Further experiments
+
+**[Ham, spam or phishing](PHISHING.md).** A single multiple-choice question sorts email into three
+categories, with phishing from Jose Nazario's corpus. TypeSafe scored 0.94 on a balanced set of
+5,733 emails against 0.99 for a TF-IDF classifier trained on 4,600 labeled examples. Spelling out
+the categories mattered most: with only the category names, TypeSafe called more than half the spam
+phishing. Adding phishing's appeals to urgency and authority helped on the emails that prompted the
+change and barely on a fresh set.
+
+**[Out-of-distribution test](OUT_OF_DISTRIBUTION.md).** Both approaches were shown email unlike
+anything the classifiers were trained on: Ling-Spam, phishing from 2024–25, and 2026 mailing-list
+posts and spam-trap mail. TypeSafe stayed near its usual accuracy while the trained classifiers
+dropped sharply.
+
+| Out-of-distribution test | TypeSafe | TF-IDF |
+|---|---|---|
+| Ling-Spam, spam or ham | 98.6% | 73.0% |
+| 2024–25 phishing, share called phishing | 91.0–93.6% | 70.3% |
+| 2026 mail, legitimate or not | 97.3% | 72.5% |
+
 ## Caveats
 
 - **Some labels are wrong.** The dataset treats newsletters and promotions inconsistently, and some
@@ -274,6 +297,9 @@ use fewer tokens.
 | `analyze.py` | Analyzes the email-dataset full run: duplicates, subsets, score reliability, cutoffs and review rates |
 | `fetch_dataset.sh` | Downloads email-dataset at commit `84209612` |
 | `fetch_lingspam.sh` | Downloads Ling-Spam and checks its SHA-256 checksum |
+| `phish.py`, `PHISHING.md` | The three-way ham, spam or phishing experiment |
+| `ood_test.py`, `OUT_OF_DISTRIBUTION.md` | The out-of-distribution test |
+| `fetch_nazario.sh`, `fetch_ood.sh` | Download the phishing corpus and the 2026 mail |
 | `results/` | Scores and token counts for each email, without the email text |
 | `report/` | Confusion-matrix notebook (`confusion_matrices.ipynb`) and page (`confusion_matrices.html`) |
 
@@ -281,6 +307,11 @@ use fewer tokens.
 
 [email-dataset](https://github.com/realprogrammersusevim/email-dataset) is MIT-licensed; its
 LICENSE file has the copyright notices.
+
+The further experiments use three more sources, credited in their own write-ups: Jose Nazario's
+[phishing corpus](https://monkey.org/~jose/phishing/) (CC BY 4.0), Bruce Guenter's
+[spam archive](http://untroubled.org/spam/), and the public archives of the python-list and
+python-announce-list mailing lists.
 
 The Ling-Spam corpus is described in: I. Androutsopoulos, J. Koutsias, K.V. Chandrinos, G. Paliouras
 and C.D. Spyropoulos, "An Evaluation of Naive Bayesian Anti-Spam Filtering", *Proceedings of the
@@ -299,7 +330,8 @@ spam filtering since 2000, and this experiment's second test would not exist wit
 is cited in [Data](#data).
 
 Thanks also to the creators of [email-dataset](https://github.com/realprogrammersusevim/email-dataset)
-for publishing it under the MIT license.
+for publishing it under the MIT license, to Jose Nazario for the phishing corpus, and to Bruce
+Guenter for maintaining a public spam archive since 1998.
 
 ## License
 

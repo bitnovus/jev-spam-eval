@@ -22,8 +22,10 @@ fetch_lingspam.sh) whenever it is needed.
 import argparse
 import asyncio
 import email
+import functools
 import html
 import json
+import mailbox
 import math
 import os
 import quopri
@@ -40,8 +42,9 @@ ROOT = Path(__file__).parent
 DATASETS = {
     "email": ROOT / "email-dataset" / "dataset",
     "lingspam": ROOT / "lingspam" / "lingspam_public" / "bare",
+    "nazario": ROOT / "phishing-corpus",
 }
-FETCH_SCRIPTS = {"email": "./fetch_dataset.sh", "lingspam": "./fetch_lingspam.sh"}
+FETCH_SCRIPTS = {"email": "./fetch_dataset.sh", "lingspam": "./fetch_lingspam.sh", "nazario": "./fetch_nazario.sh"}
 RESULTS_DIR = ROOT / "results"
 LABELS = {"1": "ham", "2": "spam"}
 MAX_BODY_CHARS = 6000
@@ -213,8 +216,19 @@ def parse_email(raw: str, bucket: str) -> dict:
     return {**fields, "body": body[:MAX_BODY_CHARS]}
 
 
+@functools.cache
+def mbox_messages(name: str) -> list[str]:
+    """Raw messages of a phishing-corpus mailbox, in file order."""
+    box = mailbox.mbox(DATASETS["nazario"] / name, create=False)
+    return [box.get_bytes(key).decode("utf-8", errors="replace") for key in box.iterkeys()]
+
+
 def read_email(file: str, dataset: str = "email") -> tuple[str, dict]:
-    """Format bucket and parsed state for a dataset path such as "2/0001.eml" or "part1/3-1msg1.txt"."""
+    """Format bucket and parsed state for a message such as "2/0001.eml", "part1/3-1msg1.txt" or
+    "phishing3.mbox#12" (the 13th message of a phishing-corpus mailbox)."""
+    if dataset == "nazario":
+        name, _, index = file.partition("#")
+        return "raw-headers", parse_email(mbox_messages(name)[int(index)], "raw-headers")
     raw = (DATASETS[dataset] / file).read_text(errors="replace")
     bucket = format_bucket(raw)
     return bucket, parse_email(raw, bucket)
@@ -222,8 +236,12 @@ def read_email(file: str, dataset: str = "email") -> tuple[str, dict]:
 
 def require_dataset(dataset: str = "email") -> None:
     root = DATASETS[dataset]
-    folders = LABELS if dataset == "email" else [f"part{i}" for i in range(1, 11)]
-    if not all((root / folder).is_dir() for folder in folders):
+    if dataset == "nazario":
+        present = all((root / name).is_file() for name in ("phishing2.mbox", "phishing3.mbox", "phishing-2024", "phishing-2025"))
+    else:
+        folders = LABELS if dataset == "email" else [f"part{i}" for i in range(1, 11)]
+        present = all((root / folder).is_dir() for folder in folders)
+    if not present:
         raise SystemExit(f"Dataset not found at {root}; run {FETCH_SCRIPTS[dataset]} first.")
 
 
@@ -261,13 +279,19 @@ async def classify(client: AsyncTypeSafeClient, sem: asyncio.Semaphore, item: di
             response = await client.system_one({"email": item["email"]}, questions)
         except Exception as error:  # noqa: BLE001 - record the failure so --resume can retry this email
             return {**row, "error": repr(error)}
-    return {
+    result = {
         **row,
         "nouls": {name: answer.noul for name, answer in response.nouls.items()},
         "input_tokens": response.usage.input_tokens,
         "output_tokens": response.usage.output_tokens,
         "model": response.model,
     }
+    if response.choices:
+        result["choices"] = {
+            name: {"choice": answer.choice, "confidence": answer.confidence, "probabilities": answer.probabilities}
+            for name, answer in response.choices.items()
+        }
+    return result
 
 
 def auc(scores: list[float], y: list[bool]) -> float:
