@@ -1,15 +1,22 @@
 # Spam or ham with TypeSafe Noul questions
 
-An evaluation of [TypeSafe](https://typesafe.ai)'s Jev model as a zero-shot spam filter on
+An experiment: how close can [TypeSafe](https://typesafe.ai)'s Jev model get to a trained spam
+filter with no training data at all? It runs Jev as a zero-shot spam filter on
 [realprogrammersusevim/email-dataset](https://github.com/realprogrammersusevim/email-dataset)
-(19,528 emails), compared with TF-IDF classifiers trained on the dataset's own labels.
+(19,528 emails) and compares it with TF-IDF classifiers trained on the dataset's own labels.
+
+> **This is an exploratory experiment, not a benchmark.** It was run once, on one public dataset,
+> with one model version (`jev-1.13.0`, September 2026). The question design changed as the
+> experiment went on, and the best-performing criteria were written after reading this dataset's
+> mistakes. Treat the numbers as a record of what worked here, not a general measure of
+> spam-filtering accuracy. See [Caveats](#caveats).
 
 Each email is sent to the TypeSafe API with a yes/no
 [Noul](https://docs.typesafe.ai/primitives/noul) question, "Is `email` spam?", which returns the
-probability of yes. No labeled examples are used. The main finding is that the wording of the
-question's criteria matters more than anything else tried: spelling out where solicited bulk mail
-falls took accuracy from 96.0% to 98.3%, level with a logistic regression trained on about 14,800
-labeled emails.
+probability of yes. No labeled examples are used. The main finding in this experiment was that the
+wording of the question's criteria mattered more than anything else tried: spelling out where
+solicited bulk mail falls took accuracy from 96.0% to 98.3%, level with a logistic regression
+trained on about 14,800 labeled emails.
 
 ![Confusion matrices for each approach](report/confusion_matrices.png)
 
@@ -73,7 +80,7 @@ Noul(instructions="Is `email` spam?", criteria={
 The state sent with it is `{"email": {"subject", "from", "body"}}`, with MIME parts decoded, HTML
 stripped, and the body cut at 6,000 characters. Only emails with full headers have a `from` field.
 
-## How the question was developed
+## How the experiment went
 
 **1. One question, two phrasings** (500 emails: 250 ham, 250 spam, seed 42). The bare question
 scored 0.980; generic criteria scored 0.978. Most mistakes were newsletters and mailing-list items.
