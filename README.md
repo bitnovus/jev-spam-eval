@@ -1,435 +1,227 @@
-# Classification from a specification
+# Zero-shot email classification with TypeSafe’s Jev
 
-**How far can a written decision rule take you before you need a labeled training set?**
+**TypeSafe’s Jev reached 98.64% accuracy on a 5,733-email ham/spam/phishing test using written category definitions and email context, without task-specific fine-tuning or labeled examples in its requests.** A TF-IDF logistic regression classifier trained on roughly 4,600 labeled messages per fold reached 98.87% with the same evidence.
 
-This repository explores that question with email classification. It uses
-[TypeSafe](https://typesafe.ai)'s pretrained Jev model to turn natural-language questions into
-probability scores, then compares those scores with TF-IDF classifiers trained on labeled email.
-The experiments cover spam detection, three-way phishing classification, learning curves, and
-distribution shift across public mail collections spanning 2000–2026.
+This repository explores how far [TypeSafe](https://typesafe.ai)'s pretrained Jev model can go through **zero-shot classification and context enrichment**. The application supplies an email and definitions of the categories. Jev returns a category and probabilities that code can use directly.
 
-On 18,514 unique emails, a written definition of spam reached **98.3% accuracy**, alongside
-**98.4%** for logistic regression trained on roughly 14,800 labels per fold. Averaging their scores
-reached **99.2%**, cutting errors from 299 to 144. On a separate set of 633 emails from 2026, an
-unchanged TypeSafe question scored **97.3%**, versus **72.5%** for TF-IDF trained on older mail.
+The clearest improvement came from giving the model more of the email to work with. With the **question and category definitions unchanged**, adding link destinations, Reply-To, and attachment metadata raised accuracy from **93.62% to 97.98%**. A further wording change brought it to 98.64%. The context-only change raised phishing recall from **85.71% to 98.43%**, while legitimate messages incorrectly flagged as phishing stayed at one.
 
-For AI engineers, these results raise three practical possibilities:
+The result also extended beyond the main set. On 853 phishing messages from 2024–25, enriched Jev caught **95.31%**, compared with **75.26%** for regression given the same evidence and trained on 9,033 older messages. This later set measures phishing recall only; it contains no legitimate mail for measuring false positives.
 
-- **Start with a specification before collecting a training set.** The plain question already
-  scored 96.0% on the first dataset. Defining the boundary between unsolicited mail and expected
-  newsletters raised it to 98.3%, without fitting a task-specific model.
-- **Test transfer as well as held-out accuracy.** TF-IDF matched or beat TypeSafe when trained on
-  each dataset's own labels. Changing the source or era of the mail reversed that result.
-- **Use the score alongside an existing classifier.** The two approaches made different mistakes.
-  A simple 50/50 average improved accuracy on both binary datasets, without learning ensemble weights.
+The practical appeal is how little task-specific machinery this required: preserve the relevant context, define the decision, and let Jev interpret the evidence. The main enrichment result needed no additional training, labeled demonstrations, or hand-written phishing indicators.
 
-The largest API run, 19,528 emails with four questions per email, cost about **$1.12** at the
-September 2026 price recorded for these experiments. That makes this an interesting design space
-for classification, routing, and triage, although only email classification is evaluated here.
+> **What zero-shot means here:** Jev's weights were not updated for these tasks, and its requests contained no labeled demonstrations. Some specifications and experiment choices were informed by earlier labeled errors, so this is zero-shot inference, not a claim of development without labeled feedback. Results are exploratory, use `jev-1.13.0`, and cannot establish whether the public corpora were unseen during pretraining.
 
-> **Scope:** exploratory experiments with `jev-1.13.0`, not a production benchmark. Jev was not
-> fine-tuned, and requests contained no labeled demonstrations. However, the detailed criteria were
-> written after inspecting errors in labeled samples totaling 1,000 emails. “No task-specific
-> training” does not mean “no supervision.” Public datasets may also have appeared in Jev's
-> pretraining. See [Caveats](#caveats).
+## More context, the same zero-shot question
 
-## The interface: a question becomes a score
+The first version gave Jev the subject, sender where available, and a text body truncated to 6,000 characters. It removed HTML tags, retaining a link's visible words but losing its destination. That left the model judging an impersonated notification without some of the evidence that could expose the impersonation.
 
-TypeSafe calls a yes/no question a [Noul](https://docs.typesafe.ai/primitives/noul). The application
-supplies an email and a question; the API returns a score between 0 and 1 representing the
-probability of “yes.” This is the plain-question path used in the experiments:
+The enriched state preserves those original fields and adds:
+
+- Reply-To.
+- Visible link text paired with the actual destination and parsed hostname.
+- Attachment filenames and content types, without attachment contents.
+
+URLs are extracted from the full textual MIME parts, subject to documented size limits. No links are visited. Code performs extraction and parsing; the model makes the classification judgment.
+
+We reran the original text-only question and evaluated the enriched input on **the same 9,886 messages with the same model version**. A second question tested evidence-focused wording on the enriched state while retaining the category definitions.
+
+| Jev variant | Main accuracy | Main phishing recall | Fresh accuracy | Recent phishing recall |
+|---|---:|---:|---:|---:|
+| Original question, text only | 93.62% | 85.71% | 92.67% | 91.68% |
+| Original question, enriched evidence | **97.98%** | **98.43%** | **95.39%** | **95.31%** |
+| Evidence-focused wording, enriched evidence | 98.64% | 98.38% | 95.76% | 94.49% |
+
+On the main set, enrichment corrected **256 errors and introduced 6**. Legitimate messages flagged as phishing stayed at **1**; spam flagged as phishing fell from **16 to 15**. On the fresh set, enrichment corrected 93 errors and introduced 3.
+
+The extra wording improved overall accuracy on the two older sets, largely by reducing legitimate mail classified as spam. It caught fewer recent phishing messages than the original question with enriched evidence. More instruction was not uniformly better.
+
+The missing context explains a concrete failure mode: fake eBay notifications often copied authentic message text. In the rerun, enrichment recovered **100 of 102 eBay-subject phishing messages that text-only Jev called legitimate**. This is a descriptive error slice, not an independent test, and multiple metadata fields changed together; it does not isolate the effect of URLs alone.
+
+[Full paired results, confusion matrices, and extraction limits →](experiments/jev-context/REPORT.md)
+
+## How close does zero-shot Jev get to a trained classifier?
+
+The supervised baseline puts the zero-shot result in perspective: regression learns from thousands of labeled emails, while Jev receives the classification specification and each email's evidence. With enriched context and evidence-focused wording, Jev came within **0.23 percentage points** of enriched regression on the main test and **0.58 points** on the fresh set.
+
+Both regression variants use the original word TF-IDF and logistic regression settings. The enriched variant receives a serialization of the same additional fields Jev saw. Input hashes were checked against every saved Jev request.
+
+| Approach | Main accuracy | Fresh accuracy | Recent phishing recall |
+|---|---:|---:|---:|
+| Jev, zero-shot, text | 93.62% | 92.67% | 91.68% |
+| Jev, zero-shot, enriched | 97.98% | 95.39% | **95.31%** |
+| Jev, zero-shot, enriched + evidence-focused wording | 98.64% | 95.76% | 94.49% |
+| TF-IDF logistic regression, text | 98.74% | **96.39%** | 70.34% |
+| TF-IDF logistic regression, enriched | **98.87%** | 96.33% | 75.26% |
+| 50/50 average of enriched Jev and regression | 99.30% | 96.21% | 95.66% |
+
+The ensemble uses the original defined Choice, without the extra wording. Weights are fixed, not fitted.
+
+**Context enrichment closed much of the gap without fitting Jev to the task.** Keeping the question fixed, Jev gained 4.36 percentage points on main accuracy, compared with 0.12 for regression. Regression retained a lead on the fresh set, including after excluding near-copies of main-set messages: **95.08% versus 93.83%** for enriched Jev, or 94.33% with the extra wording.
+
+On recent phishing, equal evidence narrowed but did not remove Jev's advantage. This is evidence of better recall on this particular later collection, not proof of general robustness to distribution shift. The ensemble improved main accuracy and recent recall, but did worse than regression alone on fresh accuracy.
+
+### How the sets and splits work
+
+| Set | Messages | Regression training |
+|---|---:|---|
+| Main: 1,911 each of ham, spam, and phishing | 5,733 | Five-fold cross-validation; roughly 4,600 training labels per fold |
+| Fresh: 1,100 each of ham, spam, and phishing | 3,300 | All 5,733 main messages |
+| Recent: phishing from 2024–25 | 853 | All 9,033 main + fresh messages |
+
+Main and fresh phishing come from roughly the same 2005–07 period. “Fresh” means different messages, not later mail. Ham and spam come from email-dataset; phishing comes from Jose Nazario's collection.
+
+Near-duplicate clusters stay together in main cross-validation. Both regression variants use identical folds, and each vectorizer is fitted only on its training partition. A shared sensitivity analysis removes the 902 fresh messages with near-copies in main, leaving 2,398. Grouping uses the original text; relationships revealed only by added metadata can remain across folds.
+
+The text-only regression reproduced all 9,033 original main/fresh classifications. Jev is evaluated without fitting to these training folds; its pretrained knowledge and written specifications are a different source of supervision.
+
+[Matched-evidence report, all confusion matrices, and evaluation details →](experiments/jev-context/REGRESSION_REPORT.md)
+
+## The interface: questions and typed answers
+
+A [Choice](https://docs.typesafe.ai/primitives/choice) selects one category and returns its probability distribution. The three-way experiment uses explicit definitions for legitimate mail, unsolicited spam, and phishing. Advance-fee and lottery scams from strangers count as spam under this specification; phishing involves impersonation intended to obtain sensitive information or induce a malicious action.
+
+This uses the actual question from the experiment:
 
 ```python
-from typesafe_sdk import AsyncTypeSafeClient, Noul
+from typesafe_sdk import AsyncTypeSafeClient
+from phish import QUESTIONS
 
-async def spam_score(email: dict, api_key: str) -> float:
+async def classify_email(email: dict, api_key: str):
     async with AsyncTypeSafeClient(api_key=api_key) as client:
         response = await client.system_one(
-            {"email": email},
-            {"spam": Noul(instructions="Is this email spam?")},
+            state={"email": email},
+            questions={"category": QUESTIONS["category"]},
+            model="jev-1.13.0",
         )
-    return response.nouls["spam"].noul
+    return response.choices["category"]
 ```
 
-The score can feed a threshold, a review queue, or an ensemble. A Noul can also take structured
-criteria defining what counts as true or false; the [tested specification](#the-question-that-worked-best)
-is below. For multiclass decisions, a [Choice](https://docs.typesafe.ai/primitives/choice) returns
-a category and per-category probabilities.
+The caller supplies parsed evidence in `email`. The enriched experiment's [runner](experiments/jev-context/evaluate.py) constructs that state. Jev's returned Choice label is retained when rounded probabilities tie; ensemble probabilities are normalized before averaging.
 
-The engineering question is how well those scores behave: whether the specification transfers,
-whether confidence is useful, and how much labeled data a conventional model needs to compete.
+For a yes/no decision, a [Noul](https://docs.typesafe.ai/primitives/noul) returns the probability of “yes.” The earlier binary experiments ask whether an email is spam. The three-way experiments above use Choice, not a combination of Nouls.
 
-## Results
+## What the earlier experiments add
 
-### Spam detection: competitive alone, stronger in combination
+### Binary spam detection: complementary errors
 
-The main comparison uses 18,514 unique messages from
-[email-dataset](https://github.com/realprogrammersusevim/email-dataset). Exact duplicates are
-removed. TF-IDF predictions use five-fold cross-validation with near-duplicate clusters kept
-together, so near-copies cannot appear in both training and test folds. Binary decisions use a
-0.5 threshold.
+On 18,514 unique email-dataset messages, detailed spam criteria approached a supervised baseline. Regression uses five-fold cross-validation with near-duplicate groups kept together; binary decisions use a 0.5 threshold.
 
 | Approach | Accuracy | AUC | Missed spam | Ham flagged as spam |
-|---|---|---|---|---|
-| TypeSafe, plain question | 95.96% | 0.9975 | 54 | 694 |
-| TypeSafe, detailed criteria | **98.33%** | 0.9984 | 106 | 203 |
-| TF-IDF logistic regression, ~14.8K training labels per fold | **98.39%** | 0.9986 | 149 | 150 |
-| TF-IDF naive Bayes, ~14.8K training labels per fold | 97.07% | 0.9971 | 367 | 175 |
-| 50/50 average of detailed criteria + logistic regression | **99.22%** | **0.9995** | **69** | **75** |
+|---|---:|---:|---:|---:|
+| Jev, plain question | 95.96% | 0.9975 | 54 | 694 |
+| Jev, detailed criteria | 98.33% | 0.9984 | 106 | 203 |
+| TF-IDF logistic regression | 98.39% | 0.9986 | 149 | 150 |
+| TF-IDF naive Bayes | 97.07% | 0.9971 | 367 | 175 |
+| 50/50 average of detailed Jev + regression | **99.22%** | **0.9995** | 69 | 75 |
 
-Ham means legitimate email. AUC measures ranking quality; 1.0 is perfect.
+The average reduced regression's 299 errors to 144. Detailed criteria reduced false positives relative to the plain question, but increased missed spam. Breaking the task into nine narrower questions made the errors easier to inspect without yielding a comparable accuracy gain.
 
-**Complementary errors are the most useful result here.** TypeSafe and logistic regression disagree
-on 466 messages, with 228 wins for TypeSafe and 238 for logistic regression (McNemar p = 0.68).
-Only 71 messages fool both. TypeSafe catches unfamiliar or obfuscated spam; logistic regression
-often wins on news-feed items and vendor announcements whose sources the dataset labels as ham.
-Their average reduces errors by **52% relative to logistic regression**.
+### Specifications do not transfer equally well
 
-Evaluation details matter: allowing near-copies into different folds raises logistic regression
-from 98.39% to 98.90%. That apparent gain is larger than the gap between the two standalone approaches.
+On Ling-Spam's 2,876 unique messages, Jev's plain question scored **98.57%**, while the detailed criteria scored **97.01%**. Many additional false positives were publishers' book announcements. The input often lacked the subscription context needed to distinguish expected announcements from unsolicited advertising.
 
-### Distribution shift: where the comparison changes
+TF-IDF trained on Ling-Spam itself reached **99.41%** with naive Bayes. A 50/50 Jev/regression average reached **99.83%**. TF-IDF trained on email-dataset instead scored only **73.0%**. Representative training data changes the comparison.
 
-In these tests, TF-IDF is trained on a different collection or older mail. TypeSafe uses questions
-from the earlier experiments without rewriting them for the new messages.
+In the original three-way experiment, category names alone scored **73.1%**, versus **93.5%** with definitions. Much of that change was semantic: the names-only question called many scams phishing that the dataset treated as spam. Those earlier results are separate from the contemporaneous enriched-input rerun above. [Original phishing experiment →](PHISHING.md)
 
-| Test set | TypeSafe | TF-IDF | Metric |
-|---|---|---|---|
-| Ling-Spam, 2,876 unique messages; TF-IDF trained on email-dataset | **98.6%** | 73.0% | Binary accuracy |
-| 2024–25 phishing, 853 messages; TF-IDF trained on older mail | **91.0–93.6%** | 70.3% | Phishing recall only |
-| 2026 list posts and spam-trap mail, 633 messages; TF-IDF trained on older mail | **97.3%** | 72.5% | Legitimate vs. not-legitimate accuracy |
+### Later mail and learning curves
 
-On the modern set, TF-IDF passed 165 of 300 spam-trap messages as legitimate. TypeSafe caught 163
-of those 165. The 97.3% result uses the three-way question with urgency and authority criteria;
-the names-only question scored 98.6% on this binary task, but performed poorly at separating spam
-from phishing in the main three-way test.
+On 633 messages from 2026, an earlier text-only Jev question with urgency/authority criteria scored **97.3%** on legitimate versus not-legitimate classification, compared with **72.5%** for regression trained on older mail. Legitimate messages came from only two Python mailing lists; the other messages came from a spam trap. The enrichment experiment has not been run on this set. [Out-of-distribution report →](OUT_OF_DISTRIBUTION.md)
 
-This suggests value when representative labels are scarce or the input distribution changes. It
-does not establish robustness to arbitrary drift: the sets are small, modern legitimate mail comes
-from only two Python mailing lists, and Jev's pretraining exposure is unknown. The phishing-only
-test cannot measure false positives. [Full results and failure cases →](OUT_OF_DISTRIBUTION.md)
+The original learning curves estimate how many labels a trained baseline needs to approach a particular Jev specification:
 
-## How many labeled emails TF-IDF needs
+| Original task and Jev variant | Jev accuracy | Approximate TF-IDF training labels to match |
+|---|---:|---:|
+| email-dataset, detailed binary criteria | 98.3% | 10,000 |
+| Ling-Spam, plain binary question | 98.6% | 200 |
+| Three-way, text-only urgency/authority criteria | 94.2% | 100 |
 
-The answer varies sharply by dataset. These learning curves keep the test folds fixed and train
-TF-IDF on progressively smaller, stratified samples of the training folds, with five draws per
-sample size.
+These are sampled learning-curve comparisons, not universal sample-complexity estimates. They **do not measure the label budget needed to match enriched Jev**. The data and scripts are in `results/learning_curve_*.jsonl` and [learning_curve.py](learning_curve.py).
 
-| Task | TypeSafe accuracy | TF-IDF labels to reach roughly that accuracy | TF-IDF with all training labels |
-|---|---|---|---|
-| email-dataset, binary | 98.3%, detailed criteria | ~10,000 | 98.4% (~14,800 labels) |
-| Ling-Spam, binary | 98.6%, plain question | ~200 | **99.4%** (~2,300 labels) |
-| Legitimate / spam / phishing | 94.2%, urgency and authority criteria | ~100 | **98.7%** (~4,600 labels) |
+## Limits of the evidence
 
-These are approximate comparisons at the sampled training sizes, not exact sample-complexity
-estimates. On email-dataset, TF-IDF reached the **plain question's 96.0% with about 1,000 labels**;
-the larger gap depends on criteria developed with labeled feedback. The Ling-Spam comparison is
-by accuracy: even with all labels, TF-IDF's best balanced accuracy was 98.4%, versus TypeSafe's 99.0%.
-
-The two tasks requiring fewer labels also offer strong dataset-specific shortcuts. Ling-Spam's ham
-comes from one linguistics list. In the three-way task, phishing comes from a different collection
-than ham and spam. Representative labels can be extremely effective; their value depends on what
-they represent.
-
-<details>
-<summary>Full learning curves</summary>
-
-Accuracy averaged across five draws at each reduced training size. “All” uses one run with the
-full training folds. TypeSafe uses the question named in the summary table above.
-
-| Dataset / model | TypeSafe | 25 | 50 | 100 | 200 | 500 | 1,000 | 2,000 | 5,000 | 10,000 | All |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| email-dataset, logistic regression | 0.983 | 0.846 | 0.892 | 0.911 | 0.928 | 0.948 | 0.962 | 0.972 | 0.979 | 0.983 | 0.984 |
-| email-dataset, naive Bayes | 0.983 | 0.855 | 0.896 | 0.914 | 0.929 | 0.945 | 0.953 | 0.958 | 0.964 | 0.968 | 0.971 |
-| Ling-Spam, logistic regression | 0.986 | 0.840 | 0.861 | 0.909 | 0.957 | 0.976 | 0.982 | 0.986 | | | 0.986 |
-| Ling-Spam, naive Bayes | 0.986 | 0.902 | 0.943 | 0.975 | 0.987 | 0.991 | 0.993 | 0.994 | | | 0.994 |
-| Three categories, logistic regression | 0.942 | 0.888 | 0.923 | 0.942 | 0.958 | 0.974 | 0.980 | 0.984 | | | 0.987 |
-
-Accuracy varied between draws by up to 3.4 percentage points at 100 labels or fewer, and by less
-than half a point at 1,000 or more. The underlying runs are in `results/learning_curve_*.jsonl`.
-
-</details>
-
-## Specifications are part of the model
-
-Writing a more detailed definition changed the decision boundary substantially. On email-dataset,
-it reduced false positives from 694 to 203, while increasing missed spam from 54 to 106. This was
-a tradeoff between which mistakes to make, not simply a better version of the same classifier.
-
-Breaking the decision into nine questions did not produce a similar improvement. Questions about
-commercial intent, scams, filter evasion, and expected correspondence made errors easier to inspect,
-but combining their answers did no better than adjusting the plain question's threshold in these
-samples. More decomposition did not automatically yield a better classifier.
-
-### Second dataset: Ling-Spam
-
-The four questions were carried over unchanged to
-[Ling-Spam](https://www.aueb.gr/users/ion/data/lingspam_public.tar.gz), a corpus of linguistics-list
-posts and spam from 2000. On its 2,876 unique messages, **the plain question beat the detailed
-specification**.
-
-| Approach | Accuracy | Balanced accuracy | Missed spam (of 468) | Ham flagged as spam (of 2,408) |
-|---|---|---|---|---|
-| TypeSafe, plain question | 98.57% | **98.98%** | 2 | 39 |
-| TypeSafe, detailed criteria | 97.01% | 97.53% | 8 | 78 |
-| TF-IDF logistic regression, ~2.3K training labels per fold | 98.57% | 95.71% | 40 | 1 |
-| TF-IDF naive Bayes, ~2.3K training labels per fold | **99.41%** | 98.44% | 14 | 3 |
-| 50/50 average of TypeSafe + logistic regression, either question | **99.83%** | **99.55%** | 4 | 1 |
-
-Balanced accuracy averages recall for ham and spam, rather than letting the larger ham class
-dominate. TypeSafe catches more spam; the trained models make fewer false accusations.
-
-About three-quarters of the 78 false positives from the detailed criteria are publishers' book
-announcements. A likely explanation: the specification treats unsolicited advertising as spam,
-but this corpus lacks the headers and list footers that would establish a subscription context.
-The specification depends on information the input may not contain.
-
-That is a useful failure mode for anyone building with language-defined decisions: **a more
-explicit policy still needs evaluation on the inputs where it will run.**
-
-### Three categories make the definition even more consequential
-
-In the [phishing experiment](PHISHING.md), asking for “legitimate,” “spam,” or “phishing” with
-category names alone scored 73.1%. Adding definitions raised accuracy to 93.5%; adding urgency
-and authority criteria raised it to 94.2%, but helped little on a fresh set.
-
-The largest change was semantic: names alone classified 1,095 of 1,911 spam messages as phishing;
-definitions reduced that to 16. TF-IDF still won the main test at 98.7%, and a probability average
-reached 99.3%. [Definitions, confusion matrices, and limitations →](PHISHING.md)
-
-### Confidence can support selective automation
-
-On email-dataset, routing TypeSafe scores from 0.3 to 0.7 to review covers **4.6% of messages**
-and leaves **99.50% accuracy on the remainder**. At the same review share, logistic regression
-leaves 99.58% and the ensemble 99.87%. These are retained-set accuracies, not measurements of a
-deployed human-review workflow.
-
-The scores also need calibration checks. For the detailed criteria, only 0.1% of messages scored
-below 0.1 are spam, and 99.9% of those scored at least 0.9 are spam. But the 0.5–0.6 bucket is only
-38% spam. A probability-shaped output is useful; it does not guarantee calibrated uncertainty.
-
-## The question that worked best
-
-This is the specification behind the 98.3% email-dataset result. It was developed from that
-dataset's errors and did worse than the plain question on Ling-Spam.
-
-```python
-Noul(instructions="Is `email` spam?", criteria={
-    "true": {
-        "what": "Unsolicited bulk email the recipient never signed up for and has no relationship with the sender",
-        "includes": [
-            "advertising or offers from senders the recipient has no relationship with",
-            "scams, advance-fee fraud, fake prizes, and phishing",
-            "adult content, pills, cheap software, mortgage, debt, and get-rich-quick offers",
-            "mailings that announce the recipient was added to a list or given a subscription they did not request",
-            "text padded with random words or character strings to get past filters",
-        ],
-    },
-    "false": {
-        "what": "Email the recipient expects, even when it is automated, commercial, or sent to many people",
-        "includes": [
-            "personal and work correspondence, including forwards and replies",
-            "mailing-list discussions and digests",
-            "newsletters, news-feed items, and promotions from sites or stores the recipient signed up for",
-            "automated notices such as delivery failures, receipts, and system alerts",
-        ],
-    },
-})
-```
-
-In the code this is the `spam_structured_criteria` question. Each email is sent as
-`{"email": {"subject", "from", "body"}}`. Only the text parts of each email are kept; they are
-decoded, HTML tags are removed, and the body is cut off at 6,000 characters. Only emails that
-include full headers have a `from` field.
-
-<details>
-<summary>Experiment history: wording changes, decomposition, and fresh samples</summary>
-
-**1. One question, two wordings.** On 500 emails (250 ham, 250 spam, seed 42), the plain question
-scored 0.980 and a version with a short, general definition of spam scored 0.978. Most mistakes
-were newsletters and mailing-list messages.
-
-**2. Nine narrower questions.** The spam question was broken into separate yes/no questions, all
-sent in one request: scam or phishing, sales pitch, adult content, drugs, mass mailing, tricks to
-get past filters, personal or work email, subscribed newsletter, plus the plain question. Code then
-combined the answers.
-
-| How the answers were combined (seed 42 / seed 1) | Accuracy |
-|---|---|
-| Plain question alone | 0.978 / 0.962 |
-| A hand-written rule | 0.974 / 0.952 |
-| A small trained model using only the plain question | 0.980 / 0.972 |
-| A small trained model using the eight narrower questions | 0.978 / 0.968 |
-| A small trained model using all nine | 0.982 / 0.972 |
-
-The small trained models were scored with cross-validation. The extra questions helped explain the
-mistakes, but they didn't improve accuracy more than moving the cutoff did. Nine questions took as
-long as two, with 33% more input tokens and 4.3 times as many output tokens.
-
-**3. Detailed criteria.** These were written after reading the mistakes in the seed 42 and seed 1
-samples, then tested on a fresh sample (seed 3) that shares no emails with those two.
-
-| Question | Seed 42 | Seed 1 | Seed 3 (fresh sample) | Seed 3 ham flagged as spam |
-|---|---|---|---|---|
-| Plain question | 0.980 | 0.964 | 0.960 | 18 |
-| Short general definition | 0.978 | 0.962 | 0.964 | 14 |
-| Detailed criteria | 0.986 | 0.972 | **0.986** | **2** |
-| Detailed criteria with an extra instruction | 0.986 | 0.972 | 0.980 | 4 |
-
-The extra instruction told the model to judge whether the recipient asked for or expects this kind
-of email, not whether it is commercial or sent to many people. It didn't help.
-
-**4. Full dataset.** All 19,528 emails, with all four questions sent in one request per email.
-
-| Question | All files | Unique emails not read while writing the criteria (17,559) |
-|---|---|---|
-| Plain question | 0.9596 | 0.9590 |
-| Short general definition | 0.9663 | 0.9663 |
-| Detailed criteria | 0.9829 | 0.9836 |
-| Detailed criteria with an extra instruction | 0.9795 | 0.9801 |
-
-</details>
-
-## Caveats
-
-- **No task-specific fitting is not the same as no supervision.** The detailed spam criteria were
-  written after inspecting mistakes in two labeled 500-email samples. The phishing urgency and
-  authority criteria were also revised after inspecting errors. Fresh-sample checks are reported,
-  but these are exploratory comparisons, not a locked benchmark. Different tables use different
-  question variants; there is no single preselected policy behind every headline result.
-- **Pretraining exposure is unknown.** Jev may have seen these public corpora, including recent
-  archives. These runs cannot establish performance on data unseen during pretraining.
-- **The baselines answer a bounded question.** TF-IDF logistic regression and naive Bayes are
-  useful supervised comparisons. There are no embedding classifiers, fine-tuned transformers,
-  other language models, or production spam filters in this experiment. TF-IDF trained on newer
-  or more varied mail may transfer better.
-- **Labels and source artifacts limit the conclusions.** Some newsletters, scams, and personal
-  emails are mislabeled. Three-way categories come from different collections. Modern spam-trap
-  labels are assumed, and its legitimate mail comes from only two lists. See the caveats in
-  [PHISHING.md](PHISHING.md#caveats) and
-  [OUT_OF_DISTRIBUTION.md](OUT_OF_DISTRIBUTION.md#caveats).
-- **The input omits useful context.** Bodies are truncated to 6,000 characters; HTML is reduced
-  to text, dropping link destinations. Many messages have no sender headers. Recipient history,
-  attachments, and other signals available to a real mail system are not evaluated.
-- **One model version, mostly single runs.** Results use `jev-1.13.0` in September 2026. Repeat
-  calls can change borderline predictions. Learning curves repeat training-sample draws, not
-  independent Jev evaluations. API costs use the recorded September 2026 rate of $0.042 per
-  million input tokens with no output-token charge; this is not an end-to-end operating-cost comparison.
+- **No task-specific fitting is not no supervision.** Detailed binary criteria and some phishing wording were informed by labeled errors. The enriched experiment was motivated by earlier error analysis, and the sets had already been inspected. This is an exploratory study, not a locked benchmark.
+- **Pretraining exposure is unknown.** All corpora are public. Later mail is a temporal test for the older-trained regression, but cannot be assumed unseen by Jev.
+- **Labels and sources are confounded.** Some phishing-corpus messages are ordinary spam or unreadable; some spam messages are phishing. Phishing comes from a different collection than ham and spam. Authentic notifications from commonly impersonated brands are underrepresented.
+- **Recall alone is incomplete.** The recent set contains no legitimate mail, so its high phishing recall cannot establish deployable precision or false-positive rates.
+- **The baseline is bounded.** This is word TF-IDF logistic regression with fixed settings, not a tuned supervised ceiling. Character-level URL models, embeddings, fine-tuned transformers, other language models, and production filters are not evaluated.
+- **Context is still incomplete.** Bodies are truncated. Enriched state contains bounded link and attachment metadata, not attachment contents, rendered images, recipient history, or independently verified sender authentication. Earlier binary experiments retain their original text-only representation.
+- **One model version and mostly single runs.** Repeated calls can change borderline answers. Probability-shaped outputs still require calibration checks. Ensemble gains vary by test set.
 
 ## Reproduce
 
-You need [uv](https://docs.astral.sh/uv/). Saved predictions are included in `results/`, so you can
-rebuild reports and train the baselines without an API key or new TypeSafe calls.
+Install [uv](https://docs.astral.sh/uv/), then fetch the source datasets. Predictions are included; source emails are not.
 
 ```sh
 uv sync
-./fetch_dataset.sh          # pinned email-dataset version
-uv run spam_noul.py --questions criteria --all --report
-uv run analyze.py           # duplicates, subsets, calibration, review rates
-uv run tfidf_baseline.py    # trains baselines; writes results/tfidf_oof.jsonl
-uv run learning_curve.py    # training sizes from 25 to 10,000 labels
+./fetch_dataset.sh
+./fetch_nazario.sh
+
+# New enriched-evidence experiment: no API calls for these commands.
+uv run python experiments/jev-context/evaluate.py --check
+uv run python experiments/jev-context/report.py
+uv run python experiments/jev-context/regression.py
 ```
 
-Additional datasets and reports:
+`report.py` recomputes the Jev tables from saved predictions. `regression.py` reconstructs and verifies the same inputs, retrains both baselines, and writes the matched comparison. Both use the original scripts and datasets at the repository root. See the [experiment README](experiments/jev-context/README.md) for artifacts, extraction limits, and provenance.
+
+### Make new Jev calls
+
+Set `TYPESAFE_API_KEY` in the environment or in the repository's `.env` file. The new runner pins `jev-1.13.0` and resumes successful saved predictions automatically. Running it against the included completed results makes no new requests; use a separate output directory for an independent replication.
 
 ```sh
+# New output directory: a three-message smoke test, then the full comparison.
+JEV_CONTEXT_OUTPUT_DIR=experiments/jev-context/rerun \
+  uv run python experiments/jev-context/evaluate.py --limit 3
+JEV_CONTEXT_OUTPUT_DIR=experiments/jev-context/rerun \
+  uv run python experiments/jev-context/evaluate.py
+```
+
+The full paired run made **19,772 requests**: one text-only and one enriched request per email, with two independent questions in the enriched request. It completed without API errors in about **252 seconds** at concurrency 16, using **32.06 million input tokens**. At the earlier recorded rate of $0.042 per million input tokens, that is approximately **$1.35**; this is a historical-rate estimate, not a verified current bill. The three-message smoke test is separate.
+
+### Earlier experiments
+
+```sh
+uv run spam_noul.py --questions criteria --all --report
+uv run analyze.py
+uv run tfidf_baseline.py
+uv run learning_curve.py
+uv run phish.py --report
+uv run learning_curve.py --dataset phish
+
 ./fetch_lingspam.sh
 uv run spam_noul.py --dataset lingspam --questions criteria --all --report
 uv run tfidf_baseline.py --dataset lingspam
 uv run learning_curve.py --dataset lingspam
 
-./fetch_nazario.sh
-uv run phish.py --report
-uv run learning_curve.py --dataset phish
-
 ./fetch_ood.sh
 uv run ood_test.py --report
 ```
 
-The notebooks in `report/` visualize saved predictions and let you explore thresholds. GitHub
-renders their saved charts. To regenerate the binary-classification notebook:
+These report and baseline commands use saved Jev predictions. The older API runners, without `--report`, can overwrite matching result files; add `--resume` to retain successful predictions. The notebooks in `report/` visualize those earlier runs.
 
-```sh
-uv run jupyter nbconvert --to notebook --execute --inplace report/confusion_matrices.ipynb
-```
+## Repository map
 
-### Make new API calls
-
-These commands require a TypeSafe API key and overwrite the matching result files. Add `--resume`
-to retain successful predictions and retry missing or failed messages.
-
-```sh
-cp .env.example .env        # add TYPESAFE_API_KEY
-uv run spam_noul.py --questions single --per-class 250 --seed 42
-uv run spam_noul.py --questions criteria --all --concurrency 16
-uv run spam_noul.py --dataset lingspam --questions criteria --all --concurrency 16
-uv run phish.py --all --concurrency 16
-uv run ood_test.py --concurrency 16
-```
-
-A 500-email sample took about 10 seconds and cost about $0.03. The full email-dataset run took
-206 seconds at concurrency 16 and used 26.7M input tokens for four questions per email, about
-$1.12 at the recorded rate. These are observed batch timings, not per-request latency guarantees.
-
-<details>
-<summary>Recreate the intermediate prompt experiments</summary>
-
-```sh
-uv run spam_noul.py --questions multi --per-class 250 --seed 42
-uv run spam_noul.py --questions multi --per-class 250 --seed 1
-uv run spam_noul.py --questions criteria --per-class 250 --seed 42
-uv run spam_noul.py --questions criteria --per-class 250 --seed 1
-uv run spam_noul.py --questions criteria --per-class 250 --seed 3 \
-  --exclude-from results/results_multi_250x2_seed42.jsonl results/results_multi_250x2_seed1.jsonl
-```
-
-</details>
-
-## Repository layout
-
-| Path | Contents |
+| Path | Purpose |
 |---|---|
-| `spam_noul.py` | Reads the messages from either dataset, picks samples, defines the three question sets, calls the API and prints reports |
-| `tfidf_baseline.py` | Trains the TF-IDF classifiers, keeping near-copies together, and compares them with TypeSafe |
-| `learning_curve.py` | Trains the TF-IDF classifiers on smaller and smaller samples of their labels, to find how many they need to match TypeSafe |
-| `analyze.py` | Analyzes the email-dataset full run: duplicates, subsets, score reliability, cutoffs and review rates |
-| `fetch_dataset.sh` | Downloads email-dataset at commit `84209612` |
-| `fetch_lingspam.sh` | Downloads Ling-Spam and checks its SHA-256 checksum |
-| `phish.py`, `PHISHING.md` | The three-way ham, spam or phishing experiment |
-| `ood_test.py`, `OUT_OF_DISTRIBUTION.md` | The out-of-distribution test |
-| `fetch_nazario.sh`, `fetch_ood.sh` | Download the phishing corpus and the 2026 mail |
-| `results/` | Scores and token counts for each email, without the email text |
-| `report/` | Notebooks of charts: `confusion_matrices.ipynb` (spam or ham) and `phishing_matrices.ipynb` (three categories), plus `confusion_matrices.html` |
+| `experiments/jev-context/` | Enriched input experiment, matched regression comparison, saved predictions, manifests, and reports |
+| `spam_noul.py` | Original parsers, binary Noul questions, API runner, and reports |
+| `phish.py`, `PHISHING.md` | Original three-way Choice definitions and text-only experiment |
+| `tfidf_baseline.py` | Binary supervised baselines and near-duplicate grouping |
+| `learning_curve.py` | Original training-label learning curves |
+| `analyze.py` | Binary error, calibration, and review-rate analysis |
+| `ood_test.py`, `OUT_OF_DISTRIBUTION.md` | Earlier cross-source and later-mail tests |
+| `fetch_*.sh` | Source-dataset downloads |
+| `results/`, `report/` | Earlier predictions and notebooks |
 
-## Data
+## Data and acknowledgments
 
-[email-dataset](https://github.com/realprogrammersusevim/email-dataset) is MIT-licensed; its
-LICENSE file has the copyright notices.
+Thanks to the creators of [email-dataset](https://github.com/realprogrammersusevim/email-dataset), published under the MIT license; Jose Nazario for the [phishing corpus](https://monkey.org/~jose/phishing/), under CC BY 4.0; Bruce Guenter for the public [spam archive](http://untroubled.org/spam/); and the contributors to the public python-list and python-announce-list archives.
 
-The further experiments use three more sources, credited in their own write-ups: Jose Nazario's
-[phishing corpus](https://monkey.org/~jose/phishing/) (CC BY 4.0), Bruce Guenter's
-[spam archive](http://untroubled.org/spam/), and the public archives of the python-list and
-python-announce-list mailing lists.
+The Ling-Spam corpus is described in I. Androutsopoulos, J. Koutsias, K.V. Chandrinos, G. Paliouras and C.D. Spyropoulos, “An Evaluation of Naive Bayesian Anti-Spam Filtering,” *Proceedings of the Workshop on Machine Learning in the New Information Age*, 11th European Conference on Machine Learning, Barcelona, 2000, pp. 9–17. Thanks to those authors for creating and sharing it. Its readme asks that published work credit the corpus and notify its author.
 
-The Ling-Spam corpus is described in: I. Androutsopoulos, J. Koutsias, K.V. Chandrinos, G. Paliouras
-and C.D. Spyropoulos, "An Evaluation of Naive Bayesian Anti-Spam Filtering", *Proceedings of the
-Workshop on Machine Learning in the New Information Age, 11th European Conference on Machine
-Learning*, Barcelona, 2000, pp. 9–17. Its readme asks that published work using it credit the corpus
-and notify its author.
-
-This repository doesn't include the source email messages: `results/` refers to them only by file
-path.
-
-## Acknowledgments
-
-Thanks to I. Androutsopoulos, J. Koutsias, K.V. Chandrinos, G. Paliouras and C.D. Spyropoulos for
-creating the Ling-Spam corpus and making it freely available. It has been a standard test set for
-spam filtering since 2000, and this experiment's second test would not exist without it. Their paper
-is cited in [Data](#data).
-
-Thanks also to the creators of [email-dataset](https://github.com/realprogrammersusevim/email-dataset)
-for publishing it under the MIT license, to Jose Nazario for the phishing corpus, and to Bruce
-Guenter for maintaining a public spam archive since 1998.
+Saved predictions refer to emails by source path and contain no email bodies. Dataset licenses and attribution requirements are separate from the code license.
 
 ## License
 

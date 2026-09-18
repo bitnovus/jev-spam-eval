@@ -1,0 +1,796 @@
+{
+  "metrics": {
+    "main": {
+      "Jev text": {
+        "n": 5733,
+        "accuracy": 0.9361590790162219,
+        "macro_f1": 0.9356403995484003,
+        "phishing_recall": 0.8571428571428571,
+        "phishing_precision": 0.9897280966767371,
+        "confusion": [
+          [
+            1844,
+            66,
+            1
+          ],
+          [
+            10,
+            1885,
+            16
+          ],
+          [
+            204,
+            69,
+            1638
+          ]
+        ],
+        "phishing_auc": 0.992085329885285,
+        "log_loss": 0.19083226774672388
+      },
+      "LR text": {
+        "n": 5733,
+        "accuracy": 0.9874411302982732,
+        "macro_f1": 0.987445824754742,
+        "phishing_recall": 0.989010989010989,
+        "phishing_precision": 0.996309963099631,
+        "confusion": [
+          [
+            1898,
+            11,
+            2
+          ],
+          [
+            33,
+            1873,
+            5
+          ],
+          [
+            7,
+            14,
+            1890
+          ]
+        ],
+        "phishing_auc": 0.9989464448984521,
+        "log_loss": 0.05552052347799873
+      },
+      "Jev enriched": {
+        "n": 5733,
+        "accuracy": 0.9797662654805512,
+        "macro_f1": 0.9797913866782292,
+        "phishing_recall": 0.9843014128728415,
+        "phishing_precision": 0.9915656299420137,
+        "confusion": [
+          [
+            1848,
+            62,
+            1
+          ],
+          [
+            8,
+            1888,
+            15
+          ],
+          [
+            16,
+            14,
+            1881
+          ]
+        ],
+        "phishing_auc": 0.99711535380968,
+        "log_loss": 0.10797409980862879
+      },
+      "LR enriched": {
+        "n": 5733,
+        "accuracy": 0.9886621315192744,
+        "macro_f1": 0.9886615550760416,
+        "phishing_recall": 0.9921507064364207,
+        "phishing_precision": 0.9952755905511811,
+        "confusion": [
+          [
+            1897,
+            12,
+            2
+          ],
+          [
+            29,
+            1875,
+            7
+          ],
+          [
+            4,
+            11,
+            1896
+          ]
+        ],
+        "phishing_auc": 0.9990584407494029,
+        "log_loss": 0.05273608717917394
+      },
+      "Jev enriched + framing": {
+        "n": 5733,
+        "accuracy": 0.9863945578231292,
+        "macro_f1": 0.9863950398378075,
+        "phishing_recall": 0.9837781266352695,
+        "phishing_precision": 0.9899947340705635,
+        "confusion": [
+          [
+            1891,
+            19,
+            1
+          ],
+          [
+            9,
+            1884,
+            18
+          ],
+          [
+            18,
+            13,
+            1880
+          ]
+        ],
+        "phishing_auc": 0.9969190872420297,
+        "log_loss": 0.10391845087188392
+      },
+      "50/50 text": {
+        "n": 5733,
+        "accuracy": 0.9924995639281353,
+        "macro_f1": 0.9925015204567401,
+        "phishing_recall": 0.9879644165358451,
+        "phishing_precision": 0.9978858350951374,
+        "confusion": [
+          [
+            1904,
+            7,
+            0
+          ],
+          [
+            9,
+            1898,
+            4
+          ],
+          [
+            5,
+            18,
+            1888
+          ]
+        ],
+        "phishing_auc": 0.9991340174116582,
+        "log_loss": 0.08603654298919419
+      },
+      "50/50 enriched": {
+        "n": 5733,
+        "accuracy": 0.9930228501657073,
+        "macro_f1": 0.9930245463395243,
+        "phishing_recall": 0.9905808477237049,
+        "phishing_precision": 0.9973656480505796,
+        "confusion": [
+          [
+            1902,
+            8,
+            1
+          ],
+          [
+            9,
+            1898,
+            4
+          ],
+          [
+            6,
+            12,
+            1893
+          ]
+        ],
+        "phishing_auc": 0.9992643597711999,
+        "log_loss": 0.05502985413046149
+      }
+    },
+    "fresh": {
+      "Jev text": {
+        "n": 3300,
+        "accuracy": 0.9266666666666666,
+        "macro_f1": 0.9256717061333554,
+        "phishing_recall": 0.8227272727272728,
+        "phishing_precision": 0.9890710382513661,
+        "confusion": [
+          [
+            1066,
+            34,
+            0
+          ],
+          [
+            3,
+            1087,
+            10
+          ],
+          [
+            75,
+            120,
+            905
+          ]
+        ],
+        "phishing_auc": 0.9679671487603304,
+        "log_loss": 0.5659209076012621
+      },
+      "LR text": {
+        "n": 3300,
+        "accuracy": 0.963939393939394,
+        "macro_f1": 0.9637706451099698,
+        "phishing_recall": 0.9163636363636364,
+        "phishing_precision": 0.9940828402366864,
+        "confusion": [
+          [
+            1091,
+            9,
+            0
+          ],
+          [
+            12,
+            1082,
+            6
+          ],
+          [
+            29,
+            63,
+            1008
+          ]
+        ],
+        "phishing_auc": 0.9961363636363636,
+        "log_loss": 0.1130619138861468
+      },
+      "Jev enriched": {
+        "n": 3300,
+        "accuracy": 0.953939393939394,
+        "macro_f1": 0.9540342416364217,
+        "phishing_recall": 0.8936363636363637,
+        "phishing_precision": 0.9909274193548387,
+        "confusion": [
+          [
+            1075,
+            25,
+            0
+          ],
+          [
+            1,
+            1090,
+            9
+          ],
+          [
+            11,
+            106,
+            983
+          ]
+        ],
+        "phishing_auc": 0.9700543388429752,
+        "log_loss": 0.5447501021418698
+      },
+      "LR enriched": {
+        "n": 3300,
+        "accuracy": 0.9633333333333334,
+        "macro_f1": 0.9632001453334412,
+        "phishing_recall": 0.9154545454545454,
+        "phishing_precision": 0.9921182266009853,
+        "confusion": [
+          [
+            1088,
+            11,
+            1
+          ],
+          [
+            9,
+            1084,
+            7
+          ],
+          [
+            23,
+            70,
+            1007
+          ]
+        ],
+        "phishing_auc": 0.9950929752066116,
+        "log_loss": 0.11691448559533373
+      },
+      "Jev enriched + framing": {
+        "n": 3300,
+        "accuracy": 0.9575757575757575,
+        "macro_f1": 0.9574658875453744,
+        "phishing_recall": 0.8954545454545455,
+        "phishing_precision": 0.9879638916750251,
+        "confusion": [
+          [
+            1091,
+            9,
+            0
+          ],
+          [
+            4,
+            1084,
+            12
+          ],
+          [
+            11,
+            104,
+            985
+          ]
+        ],
+        "phishing_auc": 0.9696719008264463,
+        "log_loss": 0.550623613076944
+      },
+      "50/50 text": {
+        "n": 3300,
+        "accuracy": 0.9645454545454546,
+        "macro_f1": 0.9644670747038483,
+        "phishing_recall": 0.9054545454545454,
+        "phishing_precision": 0.9940119760479041,
+        "confusion": [
+          [
+            1096,
+            4,
+            0
+          ],
+          [
+            3,
+            1091,
+            6
+          ],
+          [
+            5,
+            99,
+            996
+          ]
+        ],
+        "phishing_auc": 0.9925165289256198,
+        "log_loss": 0.14054159268645872
+      },
+      "50/50 enriched": {
+        "n": 3300,
+        "accuracy": 0.9621212121212122,
+        "macro_f1": 0.962035969878437,
+        "phishing_recall": 0.8972727272727272,
+        "phishing_precision": 0.9939577039274925,
+        "confusion": [
+          [
+            1096,
+            4,
+            0
+          ],
+          [
+            2,
+            1092,
+            6
+          ],
+          [
+            4,
+            109,
+            987
+          ]
+        ],
+        "phishing_auc": 0.9928739669421488,
+        "log_loss": 0.12517047247919177
+      }
+    },
+    "recent": {
+      "Jev text": {
+        "n": 853,
+        "accuracy": 0.9167643610785463,
+        "macro_f1": 0.31885830784913355,
+        "phishing_recall": 0.9167643610785463,
+        "phishing_precision": 1.0,
+        "confusion": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            62,
+            9,
+            782
+          ]
+        ]
+      },
+      "LR text": {
+        "n": 853,
+        "accuracy": 0.7033997655334114,
+        "macro_f1": 0.27529249827942187,
+        "phishing_recall": 0.7033997655334114,
+        "phishing_precision": 1.0,
+        "confusion": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            138,
+            115,
+            600
+          ]
+        ]
+      },
+      "Jev enriched": {
+        "n": 853,
+        "accuracy": 0.9531066822977726,
+        "macro_f1": 0.32533013205282113,
+        "phishing_recall": 0.9531066822977726,
+        "phishing_precision": 1.0,
+        "confusion": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            32,
+            8,
+            813
+          ]
+        ]
+      },
+      "LR enriched": {
+        "n": 853,
+        "accuracy": 0.7526377491207503,
+        "macro_f1": 0.2862876254180602,
+        "phishing_recall": 0.7526377491207503,
+        "phishing_precision": 1.0,
+        "confusion": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            140,
+            71,
+            642
+          ]
+        ]
+      },
+      "Jev enriched + framing": {
+        "n": 853,
+        "accuracy": 0.9449003516998827,
+        "macro_f1": 0.3238898935101467,
+        "phishing_recall": 0.9449003516998827,
+        "phishing_precision": 1.0,
+        "confusion": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            39,
+            8,
+            806
+          ]
+        ]
+      },
+      "50/50 text": {
+        "n": 853,
+        "accuracy": 0.9144196951934349,
+        "macro_f1": 0.31843233312921004,
+        "phishing_recall": 0.9144196951934349,
+        "phishing_precision": 1.0,
+        "confusion": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            51,
+            22,
+            780
+          ]
+        ]
+      },
+      "50/50 enriched": {
+        "n": 853,
+        "accuracy": 0.9566236811254396,
+        "macro_f1": 0.32594367884961056,
+        "phishing_recall": 0.9566236811254396,
+        "phishing_precision": 1.0,
+        "confusion": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            22,
+            15,
+            816
+          ]
+        ]
+      }
+    },
+    "fresh without near-copies": {
+      "Jev text": {
+        "n": 2398,
+        "accuracy": 0.9178482068390326,
+        "macro_f1": 0.9072274098294005,
+        "phishing_recall": 0.7552,
+        "phishing_precision": 0.9833333333333333,
+        "confusion": [
+          [
+            980,
+            33,
+            0
+          ],
+          [
+            3,
+            749,
+            8
+          ],
+          [
+            34,
+            119,
+            472
+          ]
+        ],
+        "phishing_auc": 0.9502772701635647,
+        "log_loss": 0.7163676341911134
+      },
+      "LR text": {
+        "n": 2398,
+        "accuracy": 0.9516263552960801,
+        "macro_f1": 0.9462603918855345,
+        "phishing_recall": 0.8544,
+        "phishing_precision": 0.9925650557620818,
+        "confusion": [
+          [
+            1004,
+            9,
+            0
+          ],
+          [
+            12,
+            744,
+            4
+          ],
+          [
+            29,
+            62,
+            534
+          ]
+        ],
+        "phishing_auc": 0.9932841511562325,
+        "log_loss": 0.14721377009712364
+      },
+      "Jev enriched": {
+        "n": 2398,
+        "accuracy": 0.9382819015846539,
+        "macro_f1": 0.93041112810273,
+        "phishing_recall": 0.816,
+        "phishing_precision": 0.9864603481624759,
+        "confusion": [
+          [
+            988,
+            25,
+            0
+          ],
+          [
+            1,
+            752,
+            7
+          ],
+          [
+            10,
+            105,
+            510
+          ]
+        ],
+        "phishing_auc": 0.951229780033841,
+        "log_loss": 0.708891678216612
+      },
+      "LR enriched": {
+        "n": 2398,
+        "accuracy": 0.950792326939116,
+        "macro_f1": 0.9450111945137213,
+        "phishing_recall": 0.8528,
+        "phishing_precision": 0.9888682745825603,
+        "confusion": [
+          [
+            1001,
+            11,
+            1
+          ],
+          [
+            9,
+            746,
+            5
+          ],
+          [
+            23,
+            69,
+            533
+          ]
+        ],
+        "phishing_auc": 0.9914585448392554,
+        "log_loss": 0.15226037408577592
+      },
+      "Jev enriched + framing": {
+        "n": 2398,
+        "accuracy": 0.9432860717264387,
+        "macro_f1": 0.9345217807838408,
+        "phishing_recall": 0.8192,
+        "phishing_precision": 0.9808429118773946,
+        "confusion": [
+          [
+            1004,
+            9,
+            0
+          ],
+          [
+            4,
+            746,
+            10
+          ],
+          [
+            10,
+            103,
+            512
+          ]
+        ],
+        "phishing_auc": 0.9507104342921601,
+        "log_loss": 0.7151083440491094
+      },
+      "50/50 text": {
+        "n": 2398,
+        "accuracy": 0.9524603836530442,
+        "macro_f1": 0.9445445895690794,
+        "phishing_recall": 0.8352,
+        "phishing_precision": 0.9923954372623575,
+        "confusion": [
+          [
+            1009,
+            4,
+            0
+          ],
+          [
+            3,
+            753,
+            4
+          ],
+          [
+            5,
+            98,
+            522
+          ]
+        ],
+        "phishing_auc": 0.9884056401579244,
+        "log_loss": 0.17139500658848228
+      },
+      "50/50 enriched": {
+        "n": 2398,
+        "accuracy": 0.9491242702251876,
+        "macro_f1": 0.9403073752289042,
+        "phishing_recall": 0.8208,
+        "phishing_precision": 0.9922630560928434,
+        "confusion": [
+          [
+            1009,
+            4,
+            0
+          ],
+          [
+            2,
+            754,
+            4
+          ],
+          [
+            4,
+            108,
+            513
+          ]
+        ],
+        "phishing_auc": 0.9886312464749014,
+        "log_loss": 0.16119918893056578
+      }
+    }
+  },
+  "paired_changes": {
+    "main": {
+      "LR text -> LR enriched": {
+        "corrected": 19,
+        "regressed": 12,
+        "both_wrong": 53
+      },
+      "Jev text -> Jev enriched": {
+        "corrected": 256,
+        "regressed": 6,
+        "both_wrong": 110
+      },
+      "LR enriched -> Jev enriched": {
+        "corrected": 45,
+        "regressed": 96,
+        "both_wrong": 20
+      }
+    },
+    "fresh": {
+      "LR text -> LR enriched": {
+        "corrected": 10,
+        "regressed": 12,
+        "both_wrong": 109
+      },
+      "Jev text -> Jev enriched": {
+        "corrected": 93,
+        "regressed": 3,
+        "both_wrong": 149
+      },
+      "LR enriched -> Jev enriched": {
+        "corrected": 29,
+        "regressed": 60,
+        "both_wrong": 92
+      }
+    },
+    "recent": {
+      "LR text -> LR enriched": {
+        "corrected": 78,
+        "regressed": 36,
+        "both_wrong": 175
+      },
+      "Jev text -> Jev enriched": {
+        "corrected": 31,
+        "regressed": 0,
+        "both_wrong": 40
+      },
+      "LR enriched -> Jev enriched": {
+        "corrected": 197,
+        "regressed": 26,
+        "both_wrong": 14
+      }
+    },
+    "fresh without near-copies": {
+      "LR text -> LR enriched": {
+        "corrected": 10,
+        "regressed": 12,
+        "both_wrong": 106
+      },
+      "Jev text -> Jev enriched": {
+        "corrected": 52,
+        "regressed": 3,
+        "both_wrong": 145
+      },
+      "LR enriched -> Jev enriched": {
+        "corrected": 29,
+        "regressed": 59,
+        "both_wrong": 89
+      }
+    }
+  }
+}

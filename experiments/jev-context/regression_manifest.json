@@ -1,0 +1,35 @@
+{
+  "sklearn": "1.9.1",
+  "numpy": "2.5.3",
+  "jev_probability_sums_normalized": {
+    "Jev text": 8,
+    "Jev enriched": 3,
+    "Jev enriched + framing": 1
+  },
+  "source_code_sha256": "471f8f7bf0ab09e99c198a666d5afb91b73cd484ec327ee0302ecaa38eaa3a1e",
+  "input_verification": "All 19,772 reconstructed Jev state SHA-256 values matched.",
+  "tfidf": {
+    "sublinear_tf": true,
+    "min_df": 2,
+    "max_features": 200000,
+    "analyzer": "word",
+    "ngram_range": [
+      1,
+      1
+    ]
+  },
+  "logistic_regression": {
+    "C": 10,
+    "max_iter": 2000,
+    "solver": "lbfgs"
+  },
+  "folds": 5,
+  "split_seed": 0,
+  "group_cosine_threshold": 0.8,
+  "groups": 4506,
+  "fresh_near_copies": 902,
+  "training_main": "out-of-fold, approximately 80% of main",
+  "training_fresh": "all 5733 main messages",
+  "training_recent": "all 9033 main + fresh messages",
+  "elapsed_seconds": 51.33141341600003
+}
